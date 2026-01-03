@@ -5,7 +5,10 @@
 !*
 # --- ROMs (never commit) ---
 
-roms/**
+# Ignore all files in roms except the README
+roms/*
+!roms/README.txt
+
 
 # --- Runtime / generated data ---
 cache/
