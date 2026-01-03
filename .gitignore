@@ -30,6 +30,11 @@ scripts/
 sinew_settings.json/
 sinew/sinew_storage.json
 sinew/sinew_storage_backup.json
+data/sprites/title/emerald.gif
+data/sprites/title/Ruby.gif
+data/sprites/title/Sapphire.gif
+data/sprites/title/firered.gif
+data/sprites/title/leafegreen.gif
 # --- Build / packaged output ---
 build/
 dist/
