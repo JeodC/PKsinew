@@ -1,0 +1,154 @@
+{
+  "rewards": [
+    {
+      "achievement": "SINEW_030",
+      "species": "Jirachi",
+      "level": 5,
+      "nature": "RANDOM",
+      "moves": ["Wish", "Confusion", "Rest"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Fateful Encounter",
+      "delivery": "achievement"
+    },
+    {
+      "achievement": "SINEW_008",
+      "species": "Mew",
+      "level": 30,
+      "nature": "RANDOM",
+      "moves": ["Pound", "Transform", "Mega Punch", "Metronome"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Faraway Island",
+      "delivery": "achievement"
+    },
+    {
+      "achievement": "SINEW_035",
+      "species": "Mew",
+      "level": 30,
+      "nature": "RANDOM",
+      "moves": ["Pound", "Transform", "Mega Punch", "Metronome"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Faraway Island",
+      "shiny": true,
+      "delivery": "achievement"
+    },
+    {
+      "achievement": "SINEW_033",
+      "species": "Celebi",
+      "level": 70,
+      "nature": "RANDOM",
+      "moves": ["Ancient Power", "Future Sight", "Baton Pass", "Perish Song"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Fateful Encounter",
+      "delivery": "achievement"
+    },
+    {
+      "achievement": "SINEW_051",
+      "species": "Lugia",
+      "level": 70,
+      "nature": "RANDOM",
+      "moves": ["Recover", "Hydro Pump", "Rain Dance", "Swift"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Navel Rock",
+      "delivery": "achievement"
+    },
+    {
+      "achievement": "SINEW_049",
+      "species": "Ho-oh",
+      "level": 70,
+      "nature": "RANDOM",
+      "moves": ["Recover", "Fire Blast", "Sunny Day", "Swift"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Navel Rock",
+      "delivery": "achievement"
+    },
+    {
+      "achievement": "SINEW_104",
+      "species": "Deoxys",
+      "form": "NORMAL",
+      "level": 70,
+      "nature": "RANDOM",
+      "moves": ["Psycho Boost", "Recover", "Cosmic Power", "Hyper Beam"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Sinew Labs",
+      "delivery": "achievement"
+    },
+    {
+      "species": "Mareep",
+      "level": 34,
+      "nature": "RANDOM",
+      "moves": ["Thunder Shock", "Thunder Wave", "Cotton Spore", "Light Screen"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Altering Cave",
+      "delivery": "echo"
+    },
+    {
+      "species": "Pineco",
+      "level": 34,
+      "nature": "RANDOM",
+      "moves": ["Self-Destruct", "Take Down", "Rapid Spin", "Bide"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Altering Cave",
+      "delivery": "echo"
+    },
+    {
+      "species": "Houndour",
+      "level": 36,
+      "nature": "RANDOM",
+      "moves": ["Smog", "Roar", "Bite", "Odor Sleuth"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Altering Cave",
+      "delivery": "echo"
+    },
+    {
+      "species": "Aipom",
+      "level": 34,
+      "nature": "RANDOM",
+      "moves": ["Astonish", "Baton Pass", "Tickle", "Fury Swipes"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Altering Cave",
+      "delivery": "echo"
+    },
+    {
+      "species": "Shuckle",
+      "level": 25,
+      "nature": "RANDOM",
+      "moves": ["Withdraw", "Wrap", "Encore", "Safeguard"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Altering Cave",
+      "held_item": "Oran Berry",
+      "delivery": "echo"
+    },
+    {
+      "species": "Stantler",
+      "level": 36,
+      "nature": "RANDOM",
+      "moves": ["Astonish", "Hypnosis", "Stomp", "Sand Attack"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Altering Cave",
+      "delivery": "echo"
+    },
+    {
+      "species": "Smeargle",
+      "level": 41,
+      "nature": "RANDOM",
+      "moves": ["Sketch"],
+      "ivs": {"min": 0, "max": 31},
+      "ot": "Sinew",
+      "met_location": "Altering Cave",
+      "delivery": "echo"
+    }
+  ]
+}
