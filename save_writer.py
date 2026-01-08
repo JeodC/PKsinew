@@ -574,6 +574,57 @@ def validate_save_file(filepath):
 # Pokedex data size (49 bytes = 392 bits, enough for 386 Pokemon)
 POKEDEX_SIZE = 49
 
+
+def _detect_rse_subtype(save_data, section0_offset, section1_offset=None):
+    """
+    Detect whether a save is Ruby/Sapphire or Emerald.
+    
+    The key difference:
+    - Emerald uses a security key at offset 0xAC that encrypts money/items
+    - Ruby/Sapphire does NOT use encryption (0 at 0xAC, or Battle Tower data)
+    
+    Args:
+        save_data: Save file data
+        section0_offset: Offset to Section 0
+        section1_offset: Offset to Section 1 (optional, for money validation)
+        
+    Returns:
+        str: 'E' for Emerald, 'RS' for Ruby/Sapphire, or 'FRLG' if detected
+    """
+    # First check if this is FRLG (game code = 1 at 0xAC)
+    game_code = struct.unpack('<I', save_data[section0_offset + 0xAC:section0_offset + 0xB0])[0]
+    if game_code == 1:
+        return 'FRLG'
+    
+    # Check security key at 0xAC
+    security_key = struct.unpack('<I', save_data[section0_offset + 0xAC:section0_offset + 0xB0])[0]
+    
+    if security_key == 0:
+        # No security key = Ruby/Sapphire
+        print(f"[GameDetect] Ruby/Sapphire detected (security_key=0)")
+        return 'RS'
+    
+    # Non-zero value - verify if it's a valid Emerald security key
+    # by checking if it decrypts money to a valid range
+    if section1_offset is not None:
+        money_offset = section1_offset + 0x0490  # RSE money offset
+        if money_offset + 4 <= len(save_data):
+            money_encrypted = struct.unpack('<I', save_data[money_offset:money_offset + 4])[0]
+            money_decrypted = money_encrypted ^ security_key
+            
+            if 0 <= money_decrypted <= 999999:
+                # Valid decryption = Emerald
+                print(f"[GameDetect] Emerald detected (security_key=0x{security_key:08X}, money={money_decrypted})")
+                return 'E'
+            else:
+                # Invalid decryption = RS with non-zero data at 0xAC (Battle Tower etc)
+                print(f"[GameDetect] Ruby/Sapphire detected (invalid key decryption: {money_decrypted})")
+                return 'RS'
+    
+    # Can't verify - default to RS (safer, avoids wrong offset writes)
+    print(f"[GameDetect] Defaulting to Ruby/Sapphire (couldn't verify security key)")
+    return 'RS'
+
 # According to Bulbapedia, Pokedex data is stored across MULTIPLE SECTIONS:
 # https://bulbapedia.bulbagarden.net/wiki/Save_data_structure_(Generation_III)#Pokédex_data
 #
@@ -624,16 +675,9 @@ def set_pokedex_flag(save_data, species_national_dex, seen=True, caught=True, ga
     
     # Detect game type from save if not specified or generic
     detected_game = game_type
-    if game_type in ('RSE', 'RS'):
-        # Check game code at Section 0 offset 0xAC
-        game_code = struct.unpack('<I', save_data[section0_offset + 0xAC:section0_offset + 0xB0])[0]
-        if game_code == 1:
-            detected_game = 'FRLG'
-        else:
-            # Try to detect Emerald vs RS by checking security key location
-            # Emerald has security key at 0xAC, RS doesn't use encryption
-            # For safety, default to Emerald offsets (most common)
-            detected_game = 'E'
+    if game_type in ('RSE', 'RS', 'E'):
+        # Use helper to properly detect RS vs Emerald (they have different offsets!)
+        detected_game = _detect_rse_subtype(save_data, section0_offset, section1_offset)
     
     print(f"[PokedexWriter] Game type: {detected_game}, Species: {species_national_dex}")
     
@@ -737,6 +781,7 @@ def unlock_national_pokedex(save_data, game_type='FRLG'):
     
     # Find needed sections
     section0_offset = find_section_by_id(save_data, block_offset, 0)
+    section1_offset = find_section_by_id(save_data, block_offset, 1)
     section2_offset = find_section_by_id(save_data, block_offset, 2)
     
     if section0_offset is None:
@@ -745,12 +790,9 @@ def unlock_national_pokedex(save_data, game_type='FRLG'):
     
     # Detect game type if generic
     detected_game = game_type
-    if game_type in ('RSE', 'RS'):
-        game_code = struct.unpack('<I', save_data[section0_offset + 0xAC:section0_offset + 0xB0])[0]
-        if game_code == 1:
-            detected_game = 'FRLG'
-        else:
-            detected_game = 'E'
+    if game_type in ('RSE', 'RS', 'E'):
+        # Use helper to properly detect RS vs Emerald (they have different offsets!)
+        detected_game = _detect_rse_subtype(save_data, section0_offset, section1_offset)
     
     modified_sections = set()
     
