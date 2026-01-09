@@ -9,8 +9,20 @@ import os
 import ui_colors  # Import module for dynamic theme colors
 from controller import get_controller, NavigableList
 
-# Settings file path
-SETTINGS_FILE = "sinew_settings.json"
+# Import config for paths
+try:
+    import config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    CONFIG_AVAILABLE = False
+
+# Settings file path - use absolute path from config if available
+if CONFIG_AVAILABLE and hasattr(config, 'SETTINGS_FILE'):
+    SETTINGS_FILE = config.SETTINGS_FILE
+elif CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+    SETTINGS_FILE = os.path.join(config.BASE_DIR, "sinew_settings.json")
+else:
+    SETTINGS_FILE = "sinew_settings.json"
 
 def load_sinew_settings():
     """Load settings from sinew_settings.json"""
@@ -64,8 +76,9 @@ class ConfirmationPopup:
         
         # Fonts
         try:
-            self.font_text = pygame.font.Font("fonts/Pokemon_GB.ttf", 12)
-            self.font_small = pygame.font.Font("fonts/Pokemon_GB.ttf", 10)
+            font_path = config.FONT_PATH if CONFIG_AVAILABLE else "fonts/Pokemon_GB.ttf"
+            self.font_text = pygame.font.Font(font_path, 12)
+            self.font_small = pygame.font.Font(font_path, 10)
         except:
             self.font_text = pygame.font.SysFont(None, 18)
             self.font_small = pygame.font.SysFont(None, 14)
@@ -234,9 +247,10 @@ class PauseComboSelector:
         
         # Fonts
         try:
-            self.font_header = pygame.font.Font("fonts/Pokemon_GB.ttf", 16)
-            self.font_text = pygame.font.Font("fonts/Pokemon_GB.ttf", 12)
-            self.font_small = pygame.font.Font("fonts/Pokemon_GB.ttf", 10)
+            font_path = config.FONT_PATH if CONFIG_AVAILABLE else "fonts/Pokemon_GB.ttf"
+            self.font_header = pygame.font.Font(font_path, 16)
+            self.font_text = pygame.font.Font(font_path, 12)
+            self.font_small = pygame.font.Font(font_path, 10)
         except:
             self.font_header = pygame.font.SysFont(None, 24)
             self.font_text = pygame.font.SysFont(None, 18)
@@ -616,12 +630,17 @@ class MainSetup:
         # Secret dev mode state (non-persistent)
         self._dev_mode_counter = 0
         self._dev_mode_active = False
+        
+        # Toggle debounce timer (prevents rapid toggling, especially for fullscreen)
+        self._last_toggle_time = 0
+        self._toggle_debounce_ms = 300  # 300ms debounce
 
         # Fonts
         try:
-            self.font_header = pygame.font.Font("fonts/Pokemon_GB.ttf", 18)
-            self.font_text = pygame.font.Font("fonts/Pokemon_GB.ttf", 12)
-            self.font_small = pygame.font.Font("fonts/Pokemon_GB.ttf", 10)
+            font_path = config.FONT_PATH if CONFIG_AVAILABLE else "fonts/Pokemon_GB.ttf"
+            self.font_header = pygame.font.Font(font_path, 18)
+            self.font_text = pygame.font.Font(font_path, 12)
+            self.font_small = pygame.font.Font(font_path, 10)
         except:
             self.font_header = pygame.font.SysFont(None, 24)
             self.font_text = pygame.font.SysFont(None, 18)
@@ -773,6 +792,12 @@ class MainSetup:
         option = self.current_options()[self.selected_option]
         
         if option['type'] == 'toggle':
+            # Debounce toggle to prevent rapid switching (especially for fullscreen)
+            current_time = pygame.time.get_ticks()
+            if current_time - self._last_toggle_time < self._toggle_debounce_ms:
+                return False  # Ignore this toggle, too soon
+            self._last_toggle_time = current_time
+            
             option['value'] = not option['value']
             # Call appropriate callback
             self._handle_toggle_callback(option['name'], option['value'])
@@ -801,6 +826,12 @@ class MainSetup:
             self._handle_button(option['name'])
             return True
         elif option['type'] == 'toggle':
+            # Debounce toggle to prevent rapid switching (especially for fullscreen)
+            current_time = pygame.time.get_ticks()
+            if current_time - self._last_toggle_time < self._toggle_debounce_ms:
+                return False  # Ignore this toggle, too soon
+            self._last_toggle_time = current_time
+            
             option['value'] = not option['value']
             # Call appropriate callback
             self._handle_toggle_callback(option['name'], option['value'])
@@ -1724,9 +1755,10 @@ class AboutLegalScreen:
         
         # Fonts
         try:
-            self.font_header = pygame.font.Font("fonts/Pokemon_GB.ttf", 16)
-            self.font_text = pygame.font.Font("fonts/Pokemon_GB.ttf", 11)
-            self.font_small = pygame.font.Font("fonts/Pokemon_GB.ttf", 9)
+            font_path = config.FONT_PATH if CONFIG_AVAILABLE else "fonts/Pokemon_GB.ttf"
+            self.font_header = pygame.font.Font(font_path, 16)
+            self.font_text = pygame.font.Font(font_path, 11)
+            self.font_small = pygame.font.Font(font_path, 9)
         except:
             self.font_header = pygame.font.SysFont(None, 22)
             self.font_text = pygame.font.SysFont(None, 16)

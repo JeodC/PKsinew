@@ -12,6 +12,43 @@ import threading
 import time
 from collections import deque
 
+# Import config for absolute paths
+try:
+    import config
+    CONFIG_AVAILABLE = True
+except ImportError:
+    CONFIG_AVAILABLE = False
+
+
+def _get_default_cores_dir():
+    """Get the default cores directory (absolute path)."""
+    if CONFIG_AVAILABLE and hasattr(config, 'CORES_DIR'):
+        return config.CORES_DIR
+    elif CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+        return os.path.join(config.BASE_DIR, "cores")
+    else:
+        return os.path.abspath("cores")
+
+
+def _get_default_saves_dir():
+    """Get the default saves directory (absolute path)."""
+    if CONFIG_AVAILABLE and hasattr(config, 'SAVES_DIR'):
+        return config.SAVES_DIR
+    elif CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+        return os.path.join(config.BASE_DIR, "saves")
+    else:
+        return os.path.abspath("saves")
+
+
+def _get_default_system_dir():
+    """Get the default system directory (absolute path)."""
+    if CONFIG_AVAILABLE and hasattr(config, 'SYSTEM_DIR'):
+        return config.SYSTEM_DIR
+    elif CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+        return os.path.join(config.BASE_DIR, "system")
+    else:
+        return os.path.abspath("system")
+
 
 def get_platform_core_extension():
     """
@@ -32,22 +69,31 @@ def get_platform_core_extension():
         return '.so'
 
 
-def get_default_core_path(cores_dir="cores"):
+def get_default_core_path(cores_dir=None):
     """
     Get the default mGBA libretro core path for the current platform.
     
     Args:
-        cores_dir: Directory containing core files (default: "cores")
+        cores_dir: Directory containing core files (default: from config or "cores")
         
     Returns:
         str: Full path to the core file
     """
+    if cores_dir is None:
+        cores_dir = _get_default_cores_dir()
+    elif not os.path.isabs(cores_dir):
+        # Make relative path absolute
+        if CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+            cores_dir = os.path.join(config.BASE_DIR, cores_dir)
+        else:
+            cores_dir = os.path.abspath(cores_dir)
+    
     ext = get_platform_core_extension()
     core_name = f"mgba_libretro{ext}"
     return os.path.join(cores_dir, core_name)
 
 
-def find_core_path(core_path=None, cores_dir="cores"):
+def find_core_path(core_path=None, cores_dir=None):
     """
     Find the correct core path, handling cross-platform detection.
     
@@ -61,6 +107,15 @@ def find_core_path(core_path=None, cores_dir="cores"):
     Raises:
         FileNotFoundError: If no suitable core file is found
     """
+    # Get absolute cores_dir
+    if cores_dir is None:
+        cores_dir = _get_default_cores_dir()
+    elif not os.path.isabs(cores_dir):
+        if CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+            cores_dir = os.path.join(config.BASE_DIR, cores_dir)
+        else:
+            cores_dir = os.path.abspath(cores_dir)
+    
     system = platform.system().lower()
     ext = get_platform_core_extension()
     
@@ -239,16 +294,24 @@ class MgbaEmulator:
     WIDTH = 240
     HEIGHT = 160
     
-    def __init__(self, core_path=None, save_dir="saves", system_dir="system", cores_dir="cores"):
+    def __init__(self, core_path=None, save_dir=None, system_dir=None, cores_dir=None):
         """
         Initialize the emulator.
         
         Args:
             core_path: Path to mgba_libretro core file (auto-detected if None)
-            save_dir: Directory for save files
-            system_dir: Directory for BIOS files
-            cores_dir: Directory containing libretro cores (used for auto-detection)
+            save_dir: Directory for save files (default: from config)
+            system_dir: Directory for BIOS files (default: from config)
+            cores_dir: Directory containing libretro cores (default: from config)
         """
+        # Use config defaults if not specified
+        if cores_dir is None:
+            cores_dir = _get_default_cores_dir()
+        if save_dir is None:
+            save_dir = _get_default_saves_dir()
+        if system_dir is None:
+            system_dir = _get_default_system_dir()
+        
         # Auto-detect or validate core path based on platform
         self.core_path = find_core_path(core_path, cores_dir)
         self.save_dir = os.path.abspath(save_dir)
@@ -322,14 +385,21 @@ class MgbaEmulator:
         """Load saved controller configuration from sinew_settings.json."""
         import json
         
-        config_file = "sinew_settings.json"
+        # Get absolute path for settings file
+        if CONFIG_AVAILABLE and hasattr(config, 'SETTINGS_FILE'):
+            config_file = config.SETTINGS_FILE
+        elif CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+            config_file = os.path.join(config.BASE_DIR, "sinew_settings.json")
+        else:
+            config_file = "sinew_settings.json"
+        
         try:
             if os.path.exists(config_file):
                 with open(config_file, 'r') as f:
-                    config = json.load(f)
+                    settings_data = json.load(f)
                 
-                if 'controller_mapping' in config:
-                    saved_map = config['controller_mapping']
+                if 'controller_mapping' in settings_data:
+                    saved_map = settings_data['controller_mapping']
                     
                     # Map our button names to libretro IDs
                     name_to_retro = {
@@ -987,9 +1057,18 @@ class MgbaEmulator:
         """Load pause combo setting from sinew_settings.json"""
         import json
         default = {"type": "combo", "buttons": ["START", "SELECT"]}
+        
+        # Get absolute path for settings file
+        if CONFIG_AVAILABLE and hasattr(config, 'SETTINGS_FILE'):
+            settings_file = config.SETTINGS_FILE
+        elif CONFIG_AVAILABLE and hasattr(config, 'BASE_DIR'):
+            settings_file = os.path.join(config.BASE_DIR, "sinew_settings.json")
+        else:
+            settings_file = "sinew_settings.json"
+        
         try:
-            if os.path.exists("sinew_settings.json"):
-                with open("sinew_settings.json", "r") as f:
+            if os.path.exists(settings_file):
+                with open(settings_file, "r") as f:
                     settings = json.load(f)
                     if "pause_combo" in settings:
                         return settings["pause_combo"]
@@ -1243,15 +1322,16 @@ def test_emulator():
     pygame.display.set_caption("mGBA Test")
     clock = pygame.time.Clock()
     
-    # Auto-detect core based on platform
-    emu = MgbaEmulator(
-        # core_path is auto-detected if not specified
-        save_dir="saves",
-        system_dir="system",
-        cores_dir="cores"
-    )
+    # Auto-detect core based on platform (uses config paths by default)
+    emu = MgbaEmulator()
     
-    emu.load_rom("roms/Emerald.gba")
+    # Get ROM path from config if available
+    if CONFIG_AVAILABLE and hasattr(config, 'ROMS_DIR'):
+        rom_path = os.path.join(config.ROMS_DIR, "Emerald.gba")
+    else:
+        rom_path = "roms/Emerald.gba"
+    
+    emu.load_rom(rom_path)
     
     running = True
     while running:
