@@ -14,7 +14,7 @@ from save_data_manager import get_manager
 from controller import get_controller, NavigableList
 from pygame import image
 
-FONT_PATH = "fonts/pokemon_GB.ttf"
+FONT_PATH = "fonts/Pokemon_GB.ttf"
 
 
 # ====================================================================

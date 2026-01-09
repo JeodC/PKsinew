@@ -128,8 +128,8 @@ class PokedexModal:
         font_size = max(8, int(self.screen_h * 0.04))
         title_font_size = max(10, int(self.screen_h * 0.05))
         try:
-            self.font = pygame.font.Font("fonts/pokemon_GB.ttf", font_size)
-            self.title_font = pygame.font.Font("fonts/pokemon_GB.ttf", title_font_size)
+            self.font = pygame.font.Font("fonts/Pokemon_GB.ttf", font_size)
+            self.title_font = pygame.font.Font("fonts/Pokemon_GB.ttf", title_font_size)
         except Exception:
             self.font = pygame.font.SysFont(None, font_size)
             self.title_font = pygame.font.SysFont(None, title_font_size)
