@@ -110,6 +110,14 @@ class ControllerManager:
             'left': False,
             'right': False
         }
+        # Track consumed state - prevents re-triggering until physical release
+        self.dpad_consumed = {
+            'up': False,
+            'down': False,
+            'left': False,
+            'right': False
+        }
+        self.button_consumed = {}
         
         # Button mapping for Xbox controllers
         # Xbox Elite 2: A=0, B=1, X=2, Y=3, LB=4, RB=5, Back/View=6, Start/Menu=7
@@ -151,7 +159,18 @@ class ControllerManager:
         import json
         import os
         
-        config_file = "sinew_settings.json"
+        # Get absolute path for settings file
+        try:
+            import config as cfg
+            if hasattr(cfg, 'SETTINGS_FILE'):
+                config_file = cfg.SETTINGS_FILE
+            elif hasattr(cfg, 'BASE_DIR'):
+                config_file = os.path.join(cfg.BASE_DIR, "sinew_settings.json")
+            else:
+                config_file = "sinew_settings.json"
+        except ImportError:
+            config_file = "sinew_settings.json"
+        
         try:
             if os.path.exists(config_file):
                 with open(config_file, 'r') as f:
@@ -378,21 +397,25 @@ class ControllerManager:
             
             if is_pressed:
                 if not was_pressed:
-                    # Just pressed
+                    # Just pressed - only set ready if not consumed
                     self.dpad_held_time[direction] = 0
-                    self.dpad_repeat_ready[direction] = True
+                    if not self.dpad_consumed.get(direction, False):
+                        self.dpad_repeat_ready[direction] = True
                 else:
                     # Still held
                     self.dpad_held_time[direction] += dt
                     
                     if self.dpad_held_time[direction] >= self.REPEAT_DELAY_INITIAL:
-                        # Enable repeat after initial delay
-                        repeat_time = self.dpad_held_time[direction] - self.REPEAT_DELAY_INITIAL
-                        if repeat_time % self.REPEAT_DELAY_SUBSEQUENT < dt:
-                            self.dpad_repeat_ready[direction] = True
+                        # Enable repeat after initial delay (only if not consumed)
+                        if not self.dpad_consumed.get(direction, False):
+                            repeat_time = self.dpad_held_time[direction] - self.REPEAT_DELAY_INITIAL
+                            if repeat_time % self.REPEAT_DELAY_SUBSEQUENT < dt:
+                                self.dpad_repeat_ready[direction] = True
             else:
+                # Released - clear consumed state
                 self.dpad_held_time[direction] = 0
                 self.dpad_repeat_ready[direction] = False
+                self.dpad_consumed[direction] = False
             
             self.dpad_states[direction] = is_pressed
         
@@ -403,13 +426,17 @@ class ControllerManager:
             
             if is_pressed:
                 if not was_pressed:
+                    # Just pressed - only set ready if not consumed
                     self.button_held_time[button_name] = 0
-                    self.button_repeat_ready[button_name] = True
+                    if not self.button_consumed.get(button_name, False):
+                        self.button_repeat_ready[button_name] = True
                 else:
                     self.button_held_time[button_name] = self.button_held_time.get(button_name, 0) + dt
             else:
+                # Released - clear consumed state
                 self.button_held_time[button_name] = 0
                 self.button_repeat_ready[button_name] = False
+                self.button_consumed[button_name] = False
             
             self.button_states[button_name] = is_pressed
     
@@ -532,12 +559,14 @@ class ControllerManager:
         return self.dpad_repeat_ready.get(direction, False)
     
     def consume_button(self, button_name):
-        """Consume a button press (prevent repeat)"""
+        """Consume a button press (prevent repeat until released)"""
         self.button_repeat_ready[button_name] = False
+        self.button_consumed[button_name] = True
     
     def consume_dpad(self, direction):
-        """Consume a D-pad press (prevent repeat)"""
+        """Consume a D-pad press (prevent repeat until released)"""
         self.dpad_repeat_ready[direction] = False
+        self.dpad_consumed[direction] = True
     
     def to_keyboard_events(self):
         """
