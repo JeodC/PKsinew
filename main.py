@@ -1747,8 +1747,31 @@ class GameScreen:
     def _get_running_game_name(self):
         """Get the name of the currently running game, or None if no game is running."""
         if self.emulator and self.emulator.loaded and self.emulator.rom_path:
-            # Extract game name from ROM path
-            return os.path.splitext(os.path.basename(self.emulator.rom_path))[0]
+            # Try to match the ROM path to one of our game definitions
+            rom_path = self.emulator.rom_path
+            rom_name_lower = os.path.basename(rom_path).lower()
+            
+            for game_key, game_def in GAME_DEFINITIONS.items():
+                keywords = game_def.get("keywords", [])
+                exclude = game_def.get("exclude", [])
+                
+                # Check exclusions first
+                excluded = False
+                for ex in exclude:
+                    if ex.lower() in rom_name_lower:
+                        excluded = True
+                        break
+                
+                if excluded:
+                    continue
+                
+                # Check if any keyword matches
+                for keyword in keywords:
+                    if keyword.lower() in rom_name_lower:
+                        return game_key
+            
+            # Fallback to ROM filename if no match found
+            return os.path.splitext(os.path.basename(rom_path))[0]
         return None
     
     def precache_all(self, screen=None):
@@ -2321,7 +2344,7 @@ class GameScreen:
         
         # Render text using the same font as the rest of the app
         try:
-            banner_font = pygame.font.Font("fonts/Pokemon_GB.ttf", 10)
+            banner_font = pygame.font.Font(config.FONT_PATH, 10)
         except:
             try:
                 banner_font = pygame.font.Font(None, 18)
@@ -2573,7 +2596,7 @@ class GameScreen:
             
             # Pause text
             try:
-                pause_font = pygame.font.Font("fonts/Pokemon_GB.ttf", 12)
+                pause_font = pygame.font.Font(config.FONT_PATH, 12)
             except:
                 pause_font = self.font
             
@@ -3148,10 +3171,7 @@ if __name__ == "__main__":
         
         # Scale and display to window
         scaler.blit_scaled()
-
-
+    
     # Cleanup before exiting
     game_screen.cleanup()
     pygame.quit()
-
-    
