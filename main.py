@@ -3148,7 +3148,10 @@ if __name__ == "__main__":
         
         # Scale and display to window
         scaler.blit_scaled()
-    
+
+
     # Cleanup before exiting
     game_screen.cleanup()
     pygame.quit()
+
+    
