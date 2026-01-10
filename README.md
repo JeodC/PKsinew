@@ -108,29 +108,6 @@ pip3 install --upgrade pillow numpy
 
     This README assumes you are running the latest supported version of Python 3 for your system.
 
-💡 Optional Enhancements
-
-    Add a .command launcher on macOS for double-click convenience
-
-    Organize ROMs into subfolders for easier navigation
 
 
----
 
-✅ **How to use this**:  
-
-1. Open **VS Code, Sublime, Atom**, or terminal editor like **nano**.  
-2. Create a file named exactly `README.md`.  
-3. Paste the contents **as plain text** (don’t use Word/Google Docs).  
-4. Save, commit, push — GitHub will render it perfectly.  
-
----
-
-If you want, I can make a **next-level version** that adds:  
-
-- **Step emojis** (🎯, ⚠️, ✅)  
-- **Checkmarks for recommended actions**  
-- **Warnings highlighted**  
-- Looks like a **professional polished guidebook** for GitHub  
-
-Do you want me to make that version too?
