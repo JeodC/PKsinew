@@ -3,7 +3,8 @@ import pygame
 class Scaler:
     """
     Handles resolution scaling and fullscreen for the game.
-    Uses SDL's hardware scaling (pygame.SCALED) for GPU-accelerated rendering.
+    All game rendering happens on virtual_surface at a fixed resolution,
+    then gets scaled to fit the actual window.
     """
     
     # Common resolution presets (16:9 and 4:3 friendly)
@@ -44,87 +45,61 @@ class Scaler:
         self.fullscreen = fullscreen
         self.integer_scaling = integer_scaling
         
+        # Performance option: use fast scaling (scale) vs smooth scaling (smoothscale)
+        # Fast scaling is better for Pi and low-end hardware
+        self.fast_scaling = True
+        
         # Store windowed size for returning from fullscreen
         self._windowed_width = window_width
         self._windowed_height = window_height
         
-        # Use hardware scaling mode (GPU-accelerated) for fullscreen
-        self.use_hardware_scaling = True
-        self._hw_scaling_active = False  # Will be set True when HW scaling is actually used
+        # Create virtual surface (game renders here)
+        self.virtual_surface = pygame.Surface((self.virtual_width, self.virtual_height))
         
         # Create window
         self._create_window()
         
-        # Compute scaling (for mouse coordinate conversion)
+        # Compute scaling
         self.update_scale()
     
     def _create_window(self):
         """Create or recreate the display window"""
-        # Use hardware scaling ONLY in fullscreen (where it matters most for performance)
-        # Windowed mode uses software scaling to allow custom window sizes
-        if self.use_hardware_scaling and self.fullscreen:
-            # Use pygame.SCALED for GPU-accelerated fullscreen scaling
-            flags = pygame.SCALED | pygame.FULLSCREEN
-            
-            # Render at virtual resolution - SDL handles scaling via GPU
-            self.window = pygame.display.set_mode(
-                (self.virtual_width, self.virtual_height),
-                flags
-            )
-            
-            # Virtual surface IS the window in hardware scaling mode
-            self.virtual_surface = self.window
-            
-            # Get actual display size for reference
-            display_info = pygame.display.Info()
-            self.window_width = display_info.current_w
-            self.window_height = display_info.current_h
-            
-            # Track that we're using hardware scaling this session
-            self._hw_scaling_active = True
-            
-            print(f"[Scaler] Hardware fullscreen: render {self.virtual_width}x{self.virtual_height}, "
-                  f"display {self.window_width}x{self.window_height}")
-        else:
-            # Software scaling for windowed mode (allows custom window size)
-            self._hw_scaling_active = False
-            self._create_window_software()
-    
-    def _create_window_software(self):
-        """Create window with software scaling (fallback)"""
         if self.fullscreen:
+            # Get native desktop resolution before changing modes
+            # Try multiple methods to ensure we get the right size
             display_info = pygame.display.Info()
             desktop_w = display_info.current_w
             desktop_h = display_info.current_h
             
+            # Try to get list of available fullscreen modes
             modes = pygame.display.list_modes()
             if modes and modes != -1:
+                # Use the largest available mode (first in list)
                 desktop_w, desktop_h = modes[0]
             
+            # Set fullscreen with explicit resolution
             self.window = pygame.display.set_mode(
                 (desktop_w, desktop_h),
                 pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF
             )
             
+            # Update our tracked dimensions to match actual fullscreen size
             actual_size = self.window.get_size()
             self.window_width = actual_size[0] if actual_size[0] > 0 else desktop_w
             self.window_height = actual_size[1] if actual_size[1] > 0 else desktop_h
             
-            print(f"[Scaler] Software fullscreen: {self.window_width}x{self.window_height}")
+            print(f"[Scaler] Fullscreen: {self.window_width}x{self.window_height}")
         else:
             self.window = pygame.display.set_mode(
                 (self.window_width, self.window_height),
                 pygame.RESIZABLE
             )
-            print(f"[Scaler] Software windowed: {self.window_width}x{self.window_height}")
-        
-        # Create separate virtual surface for software scaling
-        self.virtual_surface = pygame.Surface((self.virtual_width, self.virtual_height))
+            print(f"[Scaler] Windowed: {self.window_width}x{self.window_height}")
         
         pygame.display.set_caption("Sinew")
     
     def update_scale(self):
-        """Calculate scale factor for mouse coordinate conversion"""
+        """Calculate scale factor to preserve aspect ratio"""
         self.scale_x = self.window_width / self.virtual_width
         self.scale_y = self.window_height / self.virtual_height
         self.scale = min(self.scale_x, self.scale_y)
@@ -141,7 +116,7 @@ class Scaler:
         self.offset_x = (self.window_width - self.scaled_width) // 2
         self.offset_y = (self.window_height - self.scaled_height) // 2
         
-        print(f"[Scaler] Scale: {self.scale:.2f}, Offset: ({self.offset_x}, {self.offset_y})")
+        print(f"[Scaler] Scale: {self.scale:.2f}, Scaled size: {self.scaled_width}x{self.scaled_height}, Offset: ({self.offset_x}, {self.offset_y})")
     
     def handle_resize(self, new_width, new_height):
         """Handle window resize event"""
@@ -150,10 +125,7 @@ class Scaler:
             self.window_height = new_height
             self._windowed_width = new_width
             self._windowed_height = new_height
-            
-            if not self.use_hardware_scaling:
-                self.window = pygame.display.set_mode((new_width, new_height), pygame.RESIZABLE)
-            
+            self.window = pygame.display.set_mode((new_width, new_height), pygame.RESIZABLE)
             self.update_scale()
     
     def toggle_fullscreen(self):
@@ -183,10 +155,7 @@ class Scaler:
             self.window_height = height
             self._windowed_width = width
             self._windowed_height = height
-            
-            if not self.use_hardware_scaling:
-                self.window = pygame.display.set_mode((width, height), pygame.RESIZABLE)
-            
+            self.window = pygame.display.set_mode((width, height), pygame.RESIZABLE)
             self.update_scale()
     
     def set_integer_scaling(self, enabled):
@@ -194,19 +163,12 @@ class Scaler:
         self.integer_scaling = enabled
         self.update_scale()
     
-    def set_hardware_scaling(self, enabled):
-        """Enable/disable hardware scaling (requires window recreation)"""
-        if enabled != self.use_hardware_scaling:
-            self.use_hardware_scaling = enabled
-            self._create_window()
-            self.update_scale()
+    def set_fast_scaling(self, enabled):
+        """Enable/disable fast scaling (scale vs smoothscale)"""
+        self.fast_scaling = enabled
     
     def scale_mouse(self, pos):
         """Convert window mouse coordinates to virtual surface coordinates"""
-        if getattr(self, '_hw_scaling_active', False):
-            # With pygame.SCALED, mouse coordinates are already in virtual space
-            return pos
-        
         x, y = pos
         x = (x - self.offset_x) / self.scale
         y = (y - self.offset_y) / self.scale
@@ -214,10 +176,6 @@ class Scaler:
     
     def is_mouse_in_bounds(self, pos):
         """Check if mouse position (window coords) is within the game area"""
-        if getattr(self, '_hw_scaling_active', False):
-            x, y = pos
-            return 0 <= x < self.virtual_width and 0 <= y < self.virtual_height
-        
         x, y = pos
         return (self.offset_x <= x < self.offset_x + self.scaled_width and
                 self.offset_y <= y < self.offset_y + self.scaled_height)
@@ -231,23 +189,22 @@ class Scaler:
     
     def blit_scaled(self):
         """Draw virtual surface to window, scaled with letterbox"""
-        if getattr(self, '_hw_scaling_active', False):
-            # Hardware scaling - just flip, SDL handles the rest
-            pygame.display.flip()
-            return
-        
-        # Software scaling fallback
+        # Get current display surface (in case it changed)
         display_surface = pygame.display.get_surface()
         if display_surface is None:
             display_surface = self.window
         
         # Choose scaling method based on settings
-        if self.integer_scaling:
+        # fast_scaling uses scale() which is faster but less smooth
+        # This makes a big difference on Pi especially in fullscreen
+        if self.fast_scaling or self.integer_scaling:
+            # Use nearest neighbor for crisp pixels (faster)
             scaled_surface = pygame.transform.scale(
                 self.virtual_surface,
                 (self.scaled_width, self.scaled_height)
             )
         else:
+            # Use smooth scaling for better appearance at non-integer scales
             scaled_surface = pygame.transform.smoothscale(
                 self.virtual_surface,
                 (self.scaled_width, self.scaled_height)
@@ -292,15 +249,15 @@ class Scaler:
             'window_height': self._windowed_height,
             'fullscreen': self.fullscreen,
             'integer_scaling': self.integer_scaling,
-            'hardware_scaling': self.use_hardware_scaling,
+            'fast_scaling': self.fast_scaling,
         }
     
     def load_settings(self, settings):
         """Load settings from a dict"""
         if 'integer_scaling' in settings:
             self.integer_scaling = settings['integer_scaling']
-        if 'hardware_scaling' in settings:
-            self.use_hardware_scaling = settings.get('hardware_scaling', True)
+        if 'fast_scaling' in settings:
+            self.fast_scaling = settings.get('fast_scaling', True)
         if 'fullscreen' in settings:
             self.fullscreen = settings['fullscreen']
         if 'window_width' in settings and 'window_height' in settings:
