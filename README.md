@@ -1,9 +1,9 @@
-# PKsinew 🎮
+# PKsinew 
 
-**PKsinew** is a companion app for **Gen 3 Pokémon games** that lets you **track your progress across all 5 GBA games**.  
+**PKsinew** is a companion app/frontend launcher for **Gen 3 Pokémon games** that lets you **track your progress across all 5 GBA games**.  
 
-It helps you:  
-- Manage **achievements and rewards**  
+It allows you to:  
+- Gain **achievements and rewards**  
 - Handle **mass storage & transferring Pokémon between games**  
 - Access **mythical rewards**  
 - Explore **re-imagined abandoned features** from the original games  
