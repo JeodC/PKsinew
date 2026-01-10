@@ -12,7 +12,7 @@ PKsinew supports **Windows, macOS, and Linux**, and works best with a **controll
 
 💡 **Devlog / Updates:** [Sinew Devlog](https://pksinew.hashnode.dev/pksinew-devlog-index-start-here)  
 
-![Python](https://img.shields.io/badge/python-3.8%2B-blue) ![Platform](https://img.shields.io/badge/platform-Windows%2FmacOS%2FLinux-lightgrey)  
+
 
 ---
 
