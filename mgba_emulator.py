@@ -69,6 +69,62 @@ def get_platform_core_extension():
         return '.so'
 
 
+def get_platform_info():
+    """
+    Get detailed platform and architecture information.
+    
+    Returns:
+        tuple: (os_name, arch_name, extension)
+            os_name: 'windows', 'linux', or 'macos'
+            arch_name: 'x64', 'x86', 'arm64', or 'arm32'
+            extension: '.dll', '.so', or '.dylib'
+    """
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    # Determine OS name
+    if system == 'windows':
+        os_name = 'windows'
+        ext = '.dll'
+    elif system == 'darwin':
+        os_name = 'macos'
+        ext = '.dylib'
+    else:  # Linux and others
+        os_name = 'linux'
+        ext = '.so'
+    
+    # Determine architecture
+    if machine in ('amd64', 'x86_64'):
+        arch_name = 'x64'
+    elif machine in ('i386', 'i686', 'x86'):
+        arch_name = 'x86'
+    elif machine in ('aarch64', 'arm64'):
+        arch_name = 'arm64'
+    elif machine in ('armv7l', 'armv6l', 'arm'):
+        arch_name = 'arm32'
+    else:
+        # Default fallback based on pointer size
+        import struct
+        if struct.calcsize('P') == 8:
+            arch_name = 'x64'
+        else:
+            arch_name = 'x86'
+        print(f"[MgbaEmulator] Unknown machine type '{machine}', assuming {arch_name}")
+    
+    return os_name, arch_name, ext
+
+
+def get_core_filename():
+    """
+    Get the platform-specific core filename.
+    
+    Returns:
+        str: Core filename (e.g., 'mgba_libretro_linux_arm64.so')
+    """
+    os_name, arch_name, ext = get_platform_info()
+    return f"mgba_libretro_{os_name}_{arch_name}{ext}"
+
+
 def get_default_core_path(cores_dir=None):
     """
     Get the default mGBA libretro core path for the current platform.
@@ -88,14 +144,19 @@ def get_default_core_path(cores_dir=None):
         else:
             cores_dir = os.path.abspath(cores_dir)
     
-    ext = get_platform_core_extension()
-    core_name = f"mgba_libretro{ext}"
+    core_name = get_core_filename()
     return os.path.join(cores_dir, core_name)
 
 
 def find_core_path(core_path=None, cores_dir=None):
     """
     Find the correct core path, handling cross-platform detection.
+    
+    Looks for cores named: mgba_libretro_{os}_{arch}.{ext}
+    Examples:
+        - mgba_libretro_windows_x64.dll
+        - mgba_libretro_linux_arm64.so
+        - mgba_libretro_macos_arm64.dylib
     
     Args:
         core_path: Explicit path to core file (optional)
@@ -116,8 +177,8 @@ def find_core_path(core_path=None, cores_dir=None):
         else:
             cores_dir = os.path.abspath(cores_dir)
     
-    system = platform.system().lower()
-    ext = get_platform_core_extension()
+    os_name, arch_name, ext = get_platform_info()
+    expected_filename = get_core_filename()
     
     # If explicit path provided
     if core_path:
@@ -147,19 +208,31 @@ def find_core_path(core_path=None, cores_dir=None):
         print(f"[MgbaEmulator] Auto-detected core: {default_path}")
         return default_path
     
-    # Search for any mgba core in the directory
+    # Search for any mgba core matching our platform in the directory
     if os.path.isdir(cores_dir):
+        # First, look for platform-specific core
+        for filename in os.listdir(cores_dir):
+            if filename.startswith('mgba') and filename.endswith(ext):
+                # Check if it matches our OS
+                if f"_{os_name}_" in filename:
+                    found_path = os.path.join(cores_dir, filename)
+                    print(f"[MgbaEmulator] Found alternative core: {found_path}")
+                    return found_path
+        
+        # Fallback: any core with matching extension
         for filename in os.listdir(cores_dir):
             if filename.startswith('mgba') and filename.endswith(ext):
                 found_path = os.path.join(cores_dir, filename)
-                print(f"[MgbaEmulator] Found alternative core: {found_path}")
+                print(f"[MgbaEmulator] Found fallback core: {found_path}")
                 return found_path
     
     # Nothing found - raise error with helpful message
     raise FileNotFoundError(
-        f"mGBA libretro core not found for {system}.\n"
-        f"Expected: {default_path}\n"
-        f"Please ensure mgba_libretro{ext} is in the '{cores_dir}' directory."
+        f"mGBA libretro core not found.\n"
+        f"Platform: {os_name} ({arch_name})\n"
+        f"Expected: {expected_filename}\n"
+        f"Looked in: {cores_dir}\n"
+        f"Please download the correct core for your platform."
     )
 
 # ---------------- LIBRETRO CONSTANTS ----------------
@@ -318,7 +391,9 @@ class MgbaEmulator:
         self.system_dir = os.path.abspath(system_dir)
         
         # Log platform info
-        print(f"[MgbaEmulator] Platform: {platform.system()} ({platform.machine()})")
+        os_name, arch_name, ext = get_platform_info()
+        print(f"[MgbaEmulator] Platform: {os_name} {arch_name}")
+        print(f"[MgbaEmulator] Expected core: {get_core_filename()}")
         print(f"[MgbaEmulator] Core path: {self.core_path}")
         
         os.makedirs(self.save_dir, exist_ok=True)

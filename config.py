@@ -1,6 +1,6 @@
 """
 Sinew Configuration
-All paths,constants, and configuration settings
+All paths, constants, and configuration settings
 
 IMPORTANT: All paths are anchored to the script location, not the working directory.
 Use the resolve_path() function or pre-defined path constants to ensure paths work
@@ -98,19 +98,47 @@ FONT_PATH = os.path.join(FONTS_DIR, "Pokemon_GB.ttf")
 FONT_SOLID_PATH = os.path.join(FONTS_DIR, "Pokemon Solid.ttf")
 
 # ===== Emulator Paths =====
-# Platform-specific core extension
-import platform
-def get_core_extension():
-    """Get the correct libretro core extension for the current platform."""
-    system = platform.system().lower()
-    if system == 'windows':
-        return '.dll'
-    elif system == 'darwin':
-        return '.dylib'
-    else:  # Linux, including Raspberry Pi
-        return '.so'
+# Platform-specific core detection
+import platform as _platform
 
-MGBA_CORE_PATH = os.path.join(CORES_DIR, f"mgba_libretro{get_core_extension()}")
+def get_platform_info():
+    """Get platform and architecture info for core selection."""
+    system = _platform.system().lower()
+    machine = _platform.machine().lower()
+    
+    # Determine OS name
+    if system == 'windows':
+        os_name = 'windows'
+        ext = '.dll'
+    elif system == 'darwin':
+        os_name = 'macos'
+        ext = '.dylib'
+    else:  # Linux and others
+        os_name = 'linux'
+        ext = '.so'
+    
+    # Determine architecture
+    if machine in ('amd64', 'x86_64'):
+        arch_name = 'x64'
+    elif machine in ('i386', 'i686', 'x86'):
+        arch_name = 'x86'
+    elif machine in ('aarch64', 'arm64'):
+        arch_name = 'arm64'
+    elif machine in ('armv7l', 'armv6l', 'arm'):
+        arch_name = 'arm32'
+    else:
+        # Default fallback based on pointer size
+        import struct
+        arch_name = 'x64' if struct.calcsize('P') == 8 else 'x86'
+    
+    return os_name, arch_name, ext
+
+def get_core_filename():
+    """Get the platform-specific mGBA core filename."""
+    os_name, arch_name, ext = get_platform_info()
+    return f"mgba_libretro_{os_name}_{arch_name}{ext}"
+
+MGBA_CORE_PATH = os.path.join(CORES_DIR, get_core_filename())
 
 # External mGBA fallback (Windows development machine)
 MGBA_PATH = r"G:\Games\gba\mGBA\mGBA.exe"
@@ -250,4 +278,4 @@ def print_paths():
 
 
 if __name__ == "__main__":
-    print_paths() 
+    print_paths()
