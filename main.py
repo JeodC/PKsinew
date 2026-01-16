@@ -190,6 +190,12 @@ try:
 except ImportError:
     ExportModal = None
 
+try:
+    from events_screen import EventsModal, is_events_unlocked
+except ImportError:
+    EventsModal = None
+    is_events_unlocked = None
+
 # Import integrated mGBA emulator
 try:
     from mgba_emulator import MgbaEmulator, find_core_path, get_platform_core_extension
@@ -205,9 +211,9 @@ except ImportError:
 SETTINGS_FILE = config.SETTINGS_FILE if hasattr(config, 'SETTINGS_FILE') else os.path.join(config.BASE_DIR, "sinew_settings.json")
 
 # Menu items for individual games (Export instead of Settings)
-GAME_MENU_ITEMS = ["Launch Game", "Pokedex", "Trainer Info", "PC Box", "Achievements", "Settings", "Export"]
+GAME_MENU_ITEMS = ["Launch Game", "Pokedex", "Trainer Info", "PC Box", "Achievements", "Events", "Settings", "Export"]
 
-# Menu items for Sinew home screen (Settings only here)
+# Menu items for Sinew home screen (NO Events here - only per-game)
 SINEW_MENU_ITEMS = ["Pokedex", "PC Box", "Achievements", "Settings"]
 
 # Game definitions with keywords for flexible ROM detection
@@ -1836,6 +1842,7 @@ class GameScreen:
         if self.is_on_sinew():
             # Sinew menu - add Stop Game if a game is running
             items = list(SINEW_MENU_ITEMS)
+            
             if self.emulator and self.emulator.loaded:
                 items.insert(0, "Stop Game")
             items.append("Quit Sinew")
@@ -1862,12 +1869,65 @@ class GameScreen:
         
         # Add standard menu items (from GAME_MENU_ITEMS, excluding Launch Game which we handle above)
         for item in GAME_MENU_ITEMS:
-            if item != "Launch Game":
-                items.append(item)
+            if item == "Launch Game":
+                continue
+            # Only show Events if:
+            # 1. Current game has 8 badges (Champion status)
+            # 2. Endgame Access achievement has been CLAIMED
+            if item == "Events":
+                if not self._is_events_unlocked_for_current_game():
+                    continue
+            items.append(item)
         
         items.append("Quit Sinew")
         
         return items
+    
+    def _is_events_unlocked_for_current_game(self):
+        """
+        Check if Events menu should be shown for current game.
+        Requires:
+        1. Current game has 8 badges (is Champion)
+        2. That game's "Pokemon Champion!" achievement reward has been claimed
+        """
+        # Check current game's badge count first
+        manager = get_manager()
+        if not manager or not manager.is_loaded():
+            return False
+        
+        try:
+            badges = manager.get_badges()
+            badge_count = sum(1 for b in badges if b)
+            if badge_count < 8:
+                return False
+        except:
+            return False
+        
+        # Check if this game's "Pokemon Champion!" reward has been claimed
+        if self._achievement_manager:
+            # Get achievement ID for current game's champion achievement
+            current_game = self.get_current_game_name()
+            champion_ach_id = self._get_champion_achievement_id(current_game)
+            
+            if champion_ach_id and not self._achievement_manager.is_reward_claimed(champion_ach_id):
+                return False
+        
+        return True
+    
+    def _get_champion_achievement_id(self, game_name):
+        """Get the Pokemon Champion! achievement ID for a specific game."""
+        # Map game names to achievement prefixes
+        prefix_map = {
+            'Ruby': 'RUBY',
+            'Sapphire': 'SAPP',
+            'Emerald': 'EMER',
+            'FireRed': 'FR',
+            'LeafGreen': 'LG',
+        }
+        prefix = prefix_map.get(game_name)
+        if prefix:
+            return f"{prefix}_028"  # Pokemon Champion! is always _028
+        return None
     
     def _get_running_game_name(self):
         """Get the name of the currently running game, or None if no game is running."""
@@ -2755,6 +2815,60 @@ class GameScreen:
             self.emulator_active = True
             print("[Sinew] Resumed game from modal via START+SELECT")
     
+    def _on_event_claimed(self, event_key):
+        """
+        Callback when an event item is claimed from the Events screen.
+        Triggers the corresponding achievement unlock.
+        """
+        print(f"[Sinew] Event claimed: {event_key}")
+        
+        # Map event keys to achievement IDs
+        achievement_map = {
+            'eon_ticket': 'SINEW_107',      # Southern Island Pass
+            'aurora_ticket': 'SINEW_108',   # Birth Island Pass
+            'mystic_ticket': 'SINEW_109',   # Navel Rock Pass
+            'old_sea_map': 'SINEW_110',     # Faraway Island Pass
+        }
+        
+        # Unlock the per-event achievement
+        ach_id = achievement_map.get(event_key)
+        if ach_id and self._achievement_manager:
+            try:
+                # Try to find and unlock the achievement
+                from achievements_data import get_achievements_for
+                sinew_achs = get_achievements_for("Sinew")
+                for ach in sinew_achs:
+                    if ach["id"] == ach_id:
+                        self._achievement_manager.unlock_achievement(ach)
+                        break
+            except Exception as e:
+                print(f"[Sinew] Error unlocking event achievement: {e}")
+        
+        # Check if all events have been claimed for the collector achievement
+        try:
+            data_path = os.path.join("data", "sinew_data.json")
+            if os.path.exists(data_path):
+                with open(data_path, 'r') as f:
+                    data = json.load(f)
+                events = data.get('events_claimed', {})
+                
+                # Check if all 4 events are claimed
+                if all([
+                    events.get('eon_ticket', False),
+                    events.get('aurora_ticket', False),
+                    events.get('mystic_ticket', False),
+                    events.get('old_sea_map', False),
+                ]):
+                    # Unlock Event Collector achievement
+                    from achievements_data import get_achievements_for
+                    sinew_achs = get_achievements_for("Sinew")
+                    for ach in sinew_achs:
+                        if ach.get("hint") == "all_events_claimed":
+                            self._achievement_manager.unlock_achievement(ach)
+                            break
+        except Exception as e:
+            print(f"[Sinew] Error checking all events: {e}")
+    
     def _open_menu(self, name):
         """Open a menu item"""
         if name == "Launch Game":
@@ -2887,6 +3001,16 @@ class GameScreen:
                 modal_w, modal_h,
                 game_name=current_game,
                 close_callback=self._close_modal
+            )
+        elif name == "Events" and EventsModal:
+            # Events modal - for claiming mystery event items
+            # Pass the current game name from the game screen (determined by filename)
+            current_game_name = self.get_current_game_name()
+            self.modal_instance = EventsModal(
+                modal_w, modal_h, self.font,
+                on_close=self._close_modal,
+                on_event_claimed=self._on_event_claimed,
+                game_name=current_game_name
             )
         elif name == "DB Builder" and DBBuilder:
             self.modal_instance = DBBuilder(modal_w, modal_h, close_callback=self._close_modal)

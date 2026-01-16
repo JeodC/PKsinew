@@ -6,6 +6,7 @@ Tabbed settings modal with controller support
 import pygame
 import json
 import os
+import webbrowser
 import ui_colors  # Import module for dynamic theme colors
 from controller import get_controller, NavigableList
 
@@ -672,7 +673,6 @@ class MainSetup:
                 {"name": "Author", "type": "label", "value": "Cameron Penna"},
                 {"name": "Pokemon DB Status", "type": "label", "value": "Checking..."},
                 {"name": "About/Legal", "type": "button"},
-                {"name": "Check for Updates", "type": "button"},
             ],
             "Dev": [
                 {"name": "Clear Cache", "type": "button"},
@@ -899,9 +899,6 @@ class MainSetup:
                 self.width, self.height,
                 close_callback=self._close_sub_screen
             )
-        elif name == "Check for Updates":
-            print("[Settings] Checking for updates...")
-            # TODO: Version check
         # Dev tab handlers
         elif name == "Reset ALL Achievements":
             self.sub_screen = ConfirmationPopup(
@@ -1779,6 +1776,11 @@ class AboutLegalScreen:
         # Pre-render content for each tab
         self.rendered_content = {}
         self._render_all_content()
+        
+        # Link selection for controller navigation
+        self.selected_link = 0
+        self._link_indices = {}  # {tab: [line_indices that are links]}
+        self._build_link_indices()
     
     def _load_json_data(self):
         """Load JSON files for each tab"""
@@ -1807,6 +1809,12 @@ class AboutLegalScreen:
             lines = self._get_content_lines(tab)
             self.rendered_content[tab] = lines
     
+    def _build_link_indices(self):
+        """Build list of line indices that are links for each tab"""
+        for tab in self.tabs:
+            lines = self.rendered_content.get(tab, [])
+            self._link_indices[tab] = [i for i, (text, style) in enumerate(lines) if style == "link"]
+    
     def _get_content_lines(self, tab):
         """Convert JSON content to list of (text, style) tuples"""
         lines = []
@@ -1830,7 +1838,11 @@ class AboutLegalScreen:
                 lines.append((data['description'], "normal"))
             lines.append(("", "normal"))
             if data.get('source_url'):
-                lines.append((f"Source: {data['source_url']}", "small"))
+                lines.append((f"Source: {data['source_url']}", "link"))
+            if data.get('devlog'):
+                lines.append((f"Devlog: {data['devlog']}", "link"))
+            if data.get('discord'):
+                lines.append((f"Discord: {data['discord']}", "link"))
             lines.append(("", "normal"))
             if data.get('disclaimer'):
                 lines.append(("Disclaimer:", "subheader"))
@@ -1918,18 +1930,21 @@ class AboutLegalScreen:
         """Handle controller input"""
         consumed = False
         current_tab = self.tabs[self.selected_tab]
+        link_indices = self._link_indices.get(current_tab, [])
         
         # Tab switching with L/R
         if ctrl.is_button_just_pressed('L'):
             ctrl.consume_button('L')
             self.selected_tab = (self.selected_tab - 1) % len(self.tabs)
             self.tab_focus = True
+            self.selected_link = 0
             consumed = True
         
         if ctrl.is_button_just_pressed('R'):
             ctrl.consume_button('R')
             self.selected_tab = (self.selected_tab + 1) % len(self.tabs)
             self.tab_focus = True
+            self.selected_link = 0
             consumed = True
         
         # D-pad navigation
@@ -1937,33 +1952,73 @@ class AboutLegalScreen:
             if ctrl.is_dpad_just_pressed('left'):
                 ctrl.consume_dpad('left')
                 self.selected_tab = (self.selected_tab - 1) % len(self.tabs)
+                self.selected_link = 0
                 consumed = True
             
             if ctrl.is_dpad_just_pressed('right'):
                 ctrl.consume_dpad('right')
                 self.selected_tab = (self.selected_tab + 1) % len(self.tabs)
+                self.selected_link = 0
                 consumed = True
             
             if ctrl.is_dpad_just_pressed('down'):
                 ctrl.consume_dpad('down')
                 self.tab_focus = False
+                self.selected_link = 0
                 consumed = True
             
             if ctrl.is_button_just_pressed('A'):
                 ctrl.consume_button('A')
                 self.tab_focus = False
+                self.selected_link = 0
                 consumed = True
         else:
-            # Scrolling content
+            # Content navigation - move between links or scroll
             if ctrl.is_dpad_just_pressed('up'):
                 ctrl.consume_dpad('up')
-                self.scroll_offsets[current_tab] = max(0, self.scroll_offsets[current_tab] - 1)
+                if link_indices and self.selected_link > 0:
+                    # Move to previous link
+                    self.selected_link -= 1
+                    # Auto-scroll to keep link visible
+                    link_line = link_indices[self.selected_link]
+                    if link_line < self.scroll_offsets[current_tab]:
+                        self.scroll_offsets[current_tab] = link_line
+                else:
+                    # Scroll up
+                    self.scroll_offsets[current_tab] = max(0, self.scroll_offsets[current_tab] - 1)
                 consumed = True
             
             if ctrl.is_dpad_just_pressed('down'):
                 ctrl.consume_dpad('down')
-                max_scroll = max(0, len(self.rendered_content.get(current_tab, [])) - 10)
-                self.scroll_offsets[current_tab] = min(max_scroll, self.scroll_offsets[current_tab] + 1)
+                if link_indices and self.selected_link < len(link_indices) - 1:
+                    # Move to next link
+                    self.selected_link += 1
+                    # Auto-scroll to keep link visible
+                    link_line = link_indices[self.selected_link]
+                    max_visible = 10
+                    if link_line >= self.scroll_offsets[current_tab] + max_visible:
+                        self.scroll_offsets[current_tab] = link_line - max_visible + 1
+                else:
+                    # Scroll down
+                    max_scroll = max(0, len(self.rendered_content.get(current_tab, [])) - 10)
+                    self.scroll_offsets[current_tab] = min(max_scroll, self.scroll_offsets[current_tab] + 1)
+                consumed = True
+            
+            # Open selected link with A
+            if ctrl.is_button_just_pressed('A'):
+                ctrl.consume_button('A')
+                if link_indices and 0 <= self.selected_link < len(link_indices):
+                    link_line = link_indices[self.selected_link]
+                    lines = self.rendered_content.get(current_tab, [])
+                    if link_line < len(lines):
+                        text, style = lines[link_line]
+                        if ": " in text:
+                            url = text.split(": ", 1)[1]
+                            try:
+                                webbrowser.open(url)
+                                print(f"[AboutLegal] Opened: {url}")
+                            except Exception as e:
+                                print(f"[AboutLegal] Failed to open URL: {e}")
                 consumed = True
         
         # Close with B
@@ -2006,6 +2061,18 @@ class AboutLegalScreen:
                 elif event.key == pygame.K_RETURN:
                     if self.tab_focus:
                         self.tab_focus = False
+            
+            # Handle mouse clicks on links
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1 and hasattr(self, '_link_rects'):
+                    for link_rect, url in self._link_rects:
+                        if link_rect.collidepoint(event.pos):
+                            try:
+                                webbrowser.open(url)
+                                print(f"[AboutLegal] Opened: {url}")
+                            except Exception as e:
+                                print(f"[AboutLegal] Failed to open URL: {e}")
+                            break
     
     def _close(self):
         """Close the screen"""
@@ -2075,9 +2142,20 @@ class AboutLegalScreen:
         line_height = 16
         max_lines = (content_rect.height - 20) // line_height
         
+        # Track clickable links
+        self._link_rects = []
+        
+        # Get link indices for highlighting
+        link_indices = self._link_indices.get(current_tab, [])
+        
         for i, (text, style) in enumerate(lines[scroll:scroll + max_lines]):
             if y > content_rect.bottom - 15:
                 break
+            
+            actual_line_index = scroll + i
+            is_selected_link = (not self.tab_focus and 
+                               actual_line_index in link_indices and 
+                               link_indices.index(actual_line_index) == self.selected_link)
             
             if style == "header":
                 color = ui_colors.COLOR_HIGHLIGHT
@@ -2088,13 +2166,33 @@ class AboutLegalScreen:
             elif style == "small":
                 color = ui_colors.COLOR_BORDER
                 font = self.font_small
+            elif style == "link":
+                if is_selected_link:
+                    color = (255, 255, 100)  # Yellow highlight for selected link
+                else:
+                    color = (100, 180, 255)  # Light blue for clickable links
+                font = self.font_small
             else:
                 color = ui_colors.COLOR_TEXT
                 font = self.font_small
             
             if text:
                 text_surf = font.render(text, True, color)
-                surf.blit(text_surf, (content_rect.x + 15, y))
+                text_x = content_rect.x + 15
+                
+                # Draw selection indicator for selected link
+                if is_selected_link:
+                    # Draw arrow indicator
+                    arrow = self.font_small.render(">", True, (255, 255, 100))
+                    surf.blit(arrow, (content_rect.x + 5, y))
+                
+                surf.blit(text_surf, (text_x, y))
+                
+                # Track link for click detection
+                if style == "link" and ": " in text:
+                    url = text.split(": ", 1)[1]
+                    link_rect = pygame.Rect(text_x, y, text_surf.get_width(), line_height)
+                    self._link_rects.append((link_rect, url))
             
             y += line_height
         

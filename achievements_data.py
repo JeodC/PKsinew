@@ -98,6 +98,7 @@ ACHIEVEMENT_REWARDS = {
 # e.g., "RUBY_021", "FR_021", etc. all match "_021"
 PERGAME_ACHIEVEMENT_REWARDS = {
     "_021": {"type": "theme", "value": "Brock.json", "name": "Brock"},  # First Badge (any game)
+    "_028": {"type": "unlock", "value": "events", "name": "Events Access"},  # Pokemon Champion! - unlocks Events menu
     "_044": {"type": "theme", "value": "Pikachu.json", "name": "Pikachu"},  # First Level 50 (any game)
 }
 
@@ -119,10 +120,13 @@ def get_reward_for_achievement(achievement_id: str) -> dict:
     if achievement_id in GAME_SPECIFIC_REWARDS:
         return GAME_SPECIFIC_REWARDS[achievement_id]
     
-    # Check per-game pattern rewards
-    for suffix, reward in PERGAME_ACHIEVEMENT_REWARDS.items():
-        if achievement_id.endswith(suffix):
-            return reward
+    # Check per-game pattern rewards (only for actual game prefixes, NOT Sinew)
+    # Valid prefixes: RUBY_, SAPP_, EMER_, FR_, LG_
+    game_prefixes = ('RUBY_', 'SAPP_', 'EMER_', 'FR_', 'LG_')
+    if achievement_id.startswith(game_prefixes):
+        for suffix, reward in PERGAME_ACHIEVEMENT_REWARDS.items():
+            if achievement_id.endswith(suffix):
+                return reward
     
     return None
 
@@ -766,6 +770,43 @@ def _generate_sinew_achievements(start_idx: int = 1) -> List[Dict]:
     })
     idx += 1
 
+    # =============================================================================
+    # EVENT ACHIEVEMENTS - Mystery Event Items System
+    # Unlocked by claiming event tickets from the Events menu (requires Champion status
+    # and claiming the "Become Champion Once" achievement reward first)
+    # =============================================================================
+    
+    # Per-event item achievements
+    event_items = [
+        ("Southern Island Pass", "event_eon_ticket_claimed", "Obtain the Eon Ticket to visit Southern Island.", 25),
+        ("Birth Island Pass", "event_aurora_ticket_claimed", "Obtain the Aurora Ticket to visit Birth Island.", 25),
+        ("Navel Rock Pass", "event_mystic_ticket_claimed", "Obtain the Mystic Ticket to visit Navel Rock.", 25),
+        ("Faraway Island Pass", "event_old_sea_map_claimed", "Obtain the Old Sea Map to visit Faraway Island.", 25),
+    ]
+    for name, hint, desc, pts in event_items:
+        achs.append({
+            "id": f"{prefix}_{idx:03d}",
+            "name": name,
+            "desc": desc,
+            "category": "Events",
+            "game": "Sinew",
+            "hint": hint,
+            "points": pts
+        })
+        idx += 1
+    
+    # All events collector achievement
+    achs.append({
+        "id": f"{prefix}_{idx:03d}",
+        "name": "Event Collector",
+        "desc": "Obtain all 4 mystery event items across your saves.",
+        "category": "Events",
+        "game": "Sinew",
+        "hint": "all_events_claimed",
+        "points": 100
+    })
+    idx += 1
+
     assert len(achs) >= 100, f"Sinew generated {len(achs)} achievements (expected at least 100)."
     return achs
 
@@ -956,6 +997,46 @@ def check_achievement_unlocked(ach: Dict, save_data: Dict, all_saves: List[Dict]
             print(f"[Achievements] Error checking legendary: {e}")
             import traceback
             traceback.print_exc()
+    
+    # =========================================================================
+    # EVENT ACHIEVEMENTS (Mystery Event Items System)
+    # =========================================================================
+    
+    # Endgame Access - any game with 8 badges (Champion status)
+    if hint == "any_game_champion":
+        # Check current save
+        if badges >= 8:
+            return True
+        # Check all saves if provided
+        if all_saves:
+            for save in all_saves:
+                if save.get('badges', 0) >= 8:
+                    return True
+        return False
+    
+    # Event item achievements - check events_tracker in save_data
+    events_tracker = save_data.get('events_tracker', {})
+    
+    if hint == "event_eon_ticket_claimed":
+        return events_tracker.get('eon_ticket', False)
+    
+    if hint == "event_aurora_ticket_claimed":
+        return events_tracker.get('aurora_ticket', False)
+    
+    if hint == "event_mystic_ticket_claimed":
+        return events_tracker.get('mystic_ticket', False)
+    
+    if hint == "event_old_sea_map_claimed":
+        return events_tracker.get('old_sea_map', False)
+    
+    # All events collector
+    if hint == "all_events_claimed":
+        return all([
+            events_tracker.get('eon_ticket', False),
+            events_tracker.get('aurora_ticket', False),
+            events_tracker.get('mystic_ticket', False),
+            events_tracker.get('old_sea_map', False),
+        ])
     
     # Default - not unlocked
     return False

@@ -207,7 +207,18 @@ class AchievementNotification:
             from achievements_data import get_reward_for_achievement
             reward = get_reward_for_achievement(self.current.get('id', ''))
             if reward:
-                gift_surf = self.font_text.render("+ REWARD!", True, (255, 180, 100))
+                reward_type = reward.get("type", "")
+                if reward_type == "theme":
+                    reward_text = "+ Theme!"
+                elif reward_type == "pokemon":
+                    reward_text = "+ Pokemon!"
+                elif reward_type == "both":
+                    reward_text = "+ Theme & Pokemon!"
+                elif reward_type == "unlock":
+                    reward_text = "+ Unlock!"
+                else:
+                    reward_text = "+ REWARD!"
+                gift_surf = self.font_text.render(reward_text, True, (255, 200, 100))
                 surf.blit(gift_surf, (banner_rect.x + 130, banner_rect.y + 42))
         except:
             pass
@@ -813,6 +824,11 @@ class AchievementManager:
                 
                 if not theme_success and not poke_success:
                     return False, "Failed to deliver rewards"
+            
+            elif reward_type == "unlock":
+                # Special unlock type - just marks as claimed, unlocks a feature
+                unlock_name = reward.get("name", "Feature")
+                messages.append(f"{unlock_name} unlocked!")
             
             # Mark as claimed
             self.progress[achievement_id]["reward_claimed"] = True
@@ -2140,31 +2156,37 @@ class AchievementsScreen:
                     reward_info = self.manager.get_reward_info(achievement["id"])
                     
                     if reward_info:
-                        # Get reward name
+                        # Get reward name with proper label prefix
                         reward_type = reward_info.get("type", "")
                         if reward_type == "both":
-                            reward_name = reward_info.get("pokemon_name", "Gift")
+                            pokemon_name = reward_info.get('pokemon_name', 'Gift')
+                            theme_name = reward_info.get('theme_name', 'Theme')
+                            reward_name = f"Theme + Pokemon"
                         elif reward_type == "pokemon":
-                            reward_name = reward_info.get("name", "Pokemon")
+                            reward_name = f"Pokemon: {reward_info.get('name', 'Pokemon')}"
+                        elif reward_type == "theme":
+                            reward_name = f"Theme: {reward_info.get('name', 'Theme')}"
+                        elif reward_type == "unlock":
+                            reward_name = f"Unlock: {reward_info.get('name', 'Feature')}"
                         else:
-                            reward_name = reward_info.get("name", "Theme")
+                            reward_name = reward_info.get("name", "Reward")
                         
                         if has_unclaimed_gift:
                             # Unclaimed gift - bright and attention-grabbing
-                            gift_text = f"[REWARD: {reward_name}]"
-                            gift_color = (255, 180, 100)  # Orange/gold
+                            gift_text = f"[{reward_name}]"
+                            gift_color = (255, 200, 100)  # Orange/gold
                             gift_surf = self.font_small.render(gift_text, True, gift_color)
                             surf.blit(gift_surf, (box_rect.right - gift_surf.get_width() - 5, box_rect.y + 18))
                         elif is_unlocked and reward_claimed:
-                            # Already claimed
-                            gift_text = reward_name
-                            gift_color = (100, 150, 100)  # Dim green
+                            # Already claimed - bright green (was too dark)
+                            gift_text = f"[{reward_name}]"
+                            gift_color = (100, 255, 100)  # Bright green
                             gift_surf = self.font_small.render(gift_text, True, gift_color)
                             surf.blit(gift_surf, (box_rect.right - gift_surf.get_width() - 5, box_rect.y + 18))
                         else:
                             # Locked - show reward preview dimmed
-                            gift_text = reward_name
-                            gift_color = (70, 70, 70)
+                            gift_text = f"[{reward_name}]"
+                            gift_color = (100, 100, 100)
                             gift_surf = self.font_small.render(gift_text, True, gift_color)
                             surf.blit(gift_surf, (box_rect.right - gift_surf.get_width() - 5, box_rect.y + 18))
         
@@ -2297,31 +2319,33 @@ class AchievementsScreen:
         if has_reward:
             reward_y = popup_y + 160
             
-            # Build reward description
+            # Build reward description with proper labels
             reward_type = reward_info.get("type", "")
             
             if reward_type == "theme":
-                reward_desc = f"Reward: {reward_info.get('name', 'Theme')} Theme"
+                reward_desc = f"Theme: {reward_info.get('name', 'Theme')}"
             elif reward_type == "pokemon":
-                reward_desc = f"Reward: {reward_info.get('name', 'Pokemon')}"
+                reward_desc = f"Pokemon: {reward_info.get('name', 'Pokemon')}"
             elif reward_type == "both":
                 theme_name = reward_info.get('theme_name', 'Theme')
                 pokemon_name = reward_info.get('pokemon_name', 'Pokemon')
-                reward_desc = f"Rewards: {theme_name} Theme + {pokemon_name}"
+                reward_desc = f"Theme: {theme_name} + Pokemon: {pokemon_name}"
+            elif reward_type == "unlock":
+                reward_desc = f"Unlock: {reward_info.get('name', 'Feature')}"
             else:
                 reward_desc = "Reward available"
             
             if not is_unlocked:
                 # Show reward preview (greyed out)
-                reward_surf = self.font_small.render(f"[REWARD] {reward_desc}", True, (100, 100, 100))
+                reward_surf = self.font_small.render(f"[LOCKED] {reward_desc}", True, (120, 120, 120))
                 surf.blit(reward_surf, (popup_x + 15, reward_y))
             elif reward_claimed and not should_show:
                 # Already claimed and shouldn't show again (theme-only)
-                reward_surf = self.font_small.render(f"[CLAIMED] {reward_desc}", True, (100, 180, 100))
+                reward_surf = self.font_small.render(f"[CLAIMED] {reward_desc}", True, (150, 255, 150))
                 surf.blit(reward_surf, (popup_x + 15, reward_y))
             elif not should_show:
                 # Theme already unlocked from another achievement
-                reward_surf = self.font_small.render(f"[ALREADY UNLOCKED] {reward_desc}", True, (100, 180, 100))
+                reward_surf = self.font_small.render(f"[OWNED] {reward_desc}", True, (150, 255, 150))
                 surf.blit(reward_surf, (popup_x + 15, reward_y))
             else:
                 # Show claim button - UNCLAIMED AND UNLOCKED (or Pokemon re-claim)

@@ -1065,3 +1065,382 @@ def transfer_pokemon_with_pokedex(source_pokemon, dest_save_data, dest_game_type
                 message += f" (Added #{species} to Pokedex)"
     
     return (success, box_num, slot_num, message)
+
+# =============================================================================
+# ITEM WRITING FUNCTIONS
+# =============================================================================
+
+# Item Pocket offsets
+ITEM_POCKET_OFFSETS = {
+    'FRLG': {
+        'items': (0x0310, 42),
+        'key_items': (0x03B8, 30),
+        'pokeballs': (0x0430, 13),
+        'tms_hms': (0x0464, 58),
+        'berries': (0x054C, 43),
+    },
+    'RSE': {
+        'items': (0x0560, 20),
+        'key_items': (0x05B0, 20),
+        'pokeballs': (0x0600, 16),
+        'tms_hms': (0x0640, 64),
+        'berries': (0x0740, 46),
+    }
+}
+
+# Event Item IDs
+EVENT_ITEMS = {
+    'eon_ticket': {'id': 275, 'name': 'Eon Ticket', 'desc': 'Enables access to Southern Island (Latios/Latias)'},
+    'aurora_ticket': {'id': 371, 'name': 'Aurora Ticket', 'desc': 'Enables access to Birth Island (Deoxys)'},
+    'mystic_ticket': {'id': 370, 'name': 'Mystic Ticket', 'desc': 'Enables access to Navel Rock (Ho-Oh/Lugia)'},
+    'old_sea_map': {'id': 376, 'name': 'Old Sea Map', 'desc': 'Enables access to Faraway Island (Mew)'},
+}
+
+# Game compatibility for event items
+EVENT_ITEM_COMPATIBILITY = {
+    'eon_ticket': ['Ruby', 'Sapphire', 'Emerald'],
+    'aurora_ticket': ['FireRed', 'LeafGreen', 'Emerald'],
+    'mystic_ticket': ['FireRed', 'LeafGreen', 'Emerald'],
+    'old_sea_map': ['Emerald'],
+}
+
+
+def get_item_encryption_key(save_data, section1_offset):
+    """
+    Get the item encryption key from Section 1.
+    """
+    return struct.unpack('<H', save_data[section1_offset + 0x0294:section1_offset + 0x0296])[0]
+
+
+def find_item_in_pocket(save_data, section1_offset, game_type, pocket_name, item_id):
+    """
+    Find an item in a specific pocket.
+    Returns: int: Slot index if found, -1 if not found
+    """
+    # Normalize game type
+    if game_type in ('E', 'RS', 'R', 'S', 'Emerald', 'Ruby', 'Sapphire'):
+        game_type = 'RSE'
+    elif game_type in ('FRLG', 'FR', 'LG', 'FireRed', 'LeafGreen'):
+        game_type = 'FRLG'
+    
+    pocket_config = ITEM_POCKET_OFFSETS.get(game_type, ITEM_POCKET_OFFSETS['RSE'])
+    if pocket_name not in pocket_config:
+        return -1
+    
+    offset, max_slots = pocket_config[pocket_name]
+    pocket_offset = section1_offset + offset
+    
+    for slot in range(max_slots):
+        slot_offset = pocket_offset + (slot * 4)
+        if slot_offset + 4 > len(save_data):
+            break
+        slot_item_id = struct.unpack('<H', save_data[slot_offset:slot_offset + 2])[0]
+        if slot_item_id == item_id:
+            return slot
+    return -1
+
+
+def find_empty_slot_in_pocket(save_data, section1_offset, game_type, pocket_name):
+    """
+    Find the first empty slot in a pocket.
+    Returns: int: Slot index if found, -1 if pocket is full
+    """
+    # Normalize game type
+    if game_type in ('E', 'RS', 'R', 'S', 'Emerald', 'Ruby', 'Sapphire'):
+        game_type = 'RSE'
+    elif game_type in ('FRLG', 'FR', 'LG', 'FireRed', 'LeafGreen'):
+        game_type = 'FRLG'
+    
+    pocket_config = ITEM_POCKET_OFFSETS.get(game_type, ITEM_POCKET_OFFSETS['RSE'])
+    if pocket_name not in pocket_config:
+        return -1
+    
+    offset, max_slots = pocket_config[pocket_name]
+    pocket_offset = section1_offset + offset
+    
+    for slot in range(max_slots):
+        slot_offset = pocket_offset + (slot * 4)
+        if slot_offset + 4 > len(save_data):
+            break
+        slot_item_id = struct.unpack('<H', save_data[slot_offset:slot_offset + 2])[0]
+        if slot_item_id == 0:
+            return slot
+    return -1
+
+
+def add_item_to_pocket(save_data, game_type, pocket_name, item_id, quantity=1):
+    """
+    Add an item to a specific pocket in the bag.
+    If the item already exists, increases quantity (up to 999).
+    Returns: tuple: (success: bool, message: str)
+    """
+    # Normalize game type
+    if game_type in ('E', 'RS', 'R', 'S', 'Emerald', 'Ruby', 'Sapphire'):
+        normalized_type = 'RSE'
+    elif game_type in ('FRLG', 'FR', 'LG', 'FireRed', 'LeafGreen'):
+        normalized_type = 'FRLG'
+    else:
+        normalized_type = game_type
+    
+    block_offset = get_active_block(save_data)
+    section1_offset = find_section_by_id(save_data, block_offset, 1)
+    
+    if section1_offset is None:
+        return (False, "Could not find Section 1")
+    
+    item_key = get_item_encryption_key(save_data, section1_offset)
+    
+    pocket_config = ITEM_POCKET_OFFSETS.get(normalized_type, ITEM_POCKET_OFFSETS['RSE'])
+    if pocket_name not in pocket_config:
+        return (False, f"Invalid pocket: {pocket_name}")
+    
+    offset, max_slots = pocket_config[pocket_name]
+    pocket_offset = section1_offset + offset
+    
+    existing_slot = find_item_in_pocket(save_data, section1_offset, normalized_type, pocket_name, item_id)
+    
+    if existing_slot >= 0:
+        slot_offset = pocket_offset + (existing_slot * 4)
+        qty_encrypted = struct.unpack('<H', save_data[slot_offset + 2:slot_offset + 4])[0]
+        current_qty = qty_encrypted ^ item_key
+        new_qty = min(999, current_qty + quantity)
+        new_qty_encrypted = new_qty ^ item_key
+        struct.pack_into('<H', save_data, slot_offset + 2, new_qty_encrypted)
+        print(f"[ItemWriter] Increased {item_id} quantity: {current_qty} -> {new_qty}")
+    else:
+        empty_slot = find_empty_slot_in_pocket(save_data, section1_offset, normalized_type, pocket_name)
+        if empty_slot < 0:
+            return (False, f"Pocket {pocket_name} is full!")
+        slot_offset = pocket_offset + (empty_slot * 4)
+        struct.pack_into('<H', save_data, slot_offset, item_id)
+        qty_encrypted = quantity ^ item_key
+        struct.pack_into('<H', save_data, slot_offset + 2, qty_encrypted)
+        print(f"[ItemWriter] Added item {item_id} x{quantity} to slot {empty_slot}")
+    
+    update_section_checksum(save_data, section1_offset)
+    return (True, f"Added item {item_id} x{quantity}")
+
+
+def add_event_item(save_data, game_type, game_name, event_key):
+    """
+    Add an event item to the save file's key items pocket.
+    Returns: tuple: (success: bool, message: str)
+    """
+    if event_key not in EVENT_ITEMS:
+        return (False, f"Unknown event: {event_key}")
+    
+    event_info = EVENT_ITEMS[event_key]
+    item_id = event_info['id']
+    item_name = event_info['name']
+    
+    compatible_games = EVENT_ITEM_COMPATIBILITY.get(event_key, [])
+    if game_name not in compatible_games:
+        return (False, f"{item_name} is not compatible with {game_name}")
+    
+    block_offset = get_active_block(save_data)
+    section1_offset = find_section_by_id(save_data, block_offset, 1)
+    
+    if section1_offset is None:
+        return (False, "Could not find Section 1")
+    
+    existing = find_item_in_pocket(save_data, section1_offset, game_type, 'key_items', item_id)
+    if existing >= 0:
+        return (False, f"You already have {item_name}!")
+    
+    success, msg = add_item_to_pocket(save_data, game_type, 'key_items', item_id, quantity=1)
+    
+    if success:
+        return (True, f"Received {item_name}!")
+    else:
+        return (False, msg)
+
+
+def has_event_item(save_data, game_type, event_key):
+    """
+    Check if the save file has a specific event item.
+    Returns: bool: True if the item is in the key items pocket
+    """
+    if event_key not in EVENT_ITEMS:
+        return False
+    
+    item_id = EVENT_ITEMS[event_key]['id']
+    
+    block_offset = get_active_block(save_data)
+    section1_offset = find_section_by_id(save_data, block_offset, 1)
+    
+    if section1_offset is None:
+        return False
+    
+    return find_item_in_pocket(save_data, section1_offset, game_type, 'key_items', item_id) >= 0
+
+
+def get_available_events_for_game(game_name):
+    """
+    Get list of event items available for a specific game.
+    Returns: list: List of event keys available for this game
+    """
+    available = []
+    for event_key, compatible_games in EVENT_ITEM_COMPATIBILITY.items():
+        if game_name in compatible_games:
+            available.append(event_key)
+    return available
+
+
+# =============================================================================
+# EVENT ENCOUNTER FLAGS - Track if legendary was caught/defeated at location
+# =============================================================================
+
+# Flag offsets within Section 1 for each game type
+EVENT_FLAG_OFFSETS = {
+    'RSE': 0x1270,   # Ruby/Sapphire/Emerald flags start here in Section 1
+    'FRLG': 0x0EE0,  # FireRed/LeafGreen flags start here in Section 1
+}
+
+# Event encounter flag IDs - these track if the Pokemon at the event location
+# has been caught or defeated (prevents respawn)
+# Flag IDs are from the game's decompilation projects (pokeemerald, pokefirered)
+
+EVENT_ENCOUNTER_FLAGS = {
+    # Emerald has all 4 events
+    'Emerald': {
+        'eon_ticket': [0x862],           # FLAG_DEFEATED_LATIAS_OR_LATIOS (Southern Island)
+        'aurora_ticket': [0x86D],        # FLAG_DEFEATED_DEOXYS (Birth Island)
+        'mystic_ticket': [0x86B, 0x86C], # FLAG_DEFEATED_HO_OH, FLAG_DEFEATED_LUGIA (Navel Rock)
+        'old_sea_map': [0x86E],          # FLAG_DEFEATED_MEW (Faraway Island)
+    },
+    # Ruby/Sapphire only have Eon Ticket event
+    'Ruby': {
+        'eon_ticket': [0x862],           # FLAG_DEFEATED_LATIAS_OR_LATIOS
+    },
+    'Sapphire': {
+        'eon_ticket': [0x862],           # FLAG_DEFEATED_LATIAS_OR_LATIOS
+    },
+    # FireRed/LeafGreen have Aurora and Mystic Ticket events
+    'FireRed': {
+        'aurora_ticket': [0x290],        # FLAG_DEFEATED_DEOXYS (Birth Island)
+        'mystic_ticket': [0x291, 0x292], # FLAG_DEFEATED_LUGIA, FLAG_DEFEATED_HO_OH (Navel Rock)
+    },
+    'LeafGreen': {
+        'aurora_ticket': [0x290],        # FLAG_DEFEATED_DEOXYS
+        'mystic_ticket': [0x291, 0x292], # FLAG_DEFEATED_LUGIA, FLAG_DEFEATED_HO_OH
+    },
+}
+
+
+def get_flag_value(save_data, section1_offset, game_type, flag_id):
+    """
+    Read a single flag value from the save data.
+    
+    Args:
+        save_data: Save file data
+        section1_offset: Offset to Section 1
+        game_type: 'RSE' or 'FRLG'
+        flag_id: The flag ID to check
+        
+    Returns:
+        bool: True if flag is set, False otherwise
+    """
+    # Get flags base offset for this game type
+    flags_base = EVENT_FLAG_OFFSETS.get(game_type, EVENT_FLAG_OFFSETS['RSE'])
+    
+    # Calculate byte and bit position
+    # Flags are stored as a bit array
+    byte_offset = section1_offset + flags_base + (flag_id // 8)
+    bit_position = flag_id % 8
+    
+    # Check bounds
+    if byte_offset >= len(save_data):
+        return False
+    
+    # Read the byte and check the bit
+    flag_byte = save_data[byte_offset]
+    is_set = (flag_byte >> bit_position) & 1
+    
+    return bool(is_set)
+
+
+def is_event_encounter_complete(save_data, game_type, game_name, event_key):
+    """
+    Check if an event encounter has been completed (Pokemon caught/defeated at location).
+    
+    For events with multiple Pokemon (Mystic Ticket has Ho-Oh AND Lugia),
+    returns True only if ALL Pokemon have been caught/defeated.
+    
+    Args:
+        save_data: Save file data
+        game_type: 'RSE' or 'FRLG'
+        game_name: Full game name ('Ruby', 'Emerald', 'FireRed', etc.)
+        event_key: Event key ('eon_ticket', 'aurora_ticket', etc.)
+        
+    Returns:
+        bool: True if all event Pokemon have been caught/defeated at their location
+    """
+    # Get flags for this game
+    game_flags = EVENT_ENCOUNTER_FLAGS.get(game_name, {})
+    event_flags = game_flags.get(event_key, [])
+    
+    if not event_flags:
+        # No flags defined for this event/game combo
+        return False
+    
+    # Get Section 1 offset
+    block_offset = get_active_block(save_data)
+    section1_offset = find_section_by_id(save_data, block_offset, 1)
+    
+    if section1_offset is None:
+        return False
+    
+    # Check all flags for this event - ALL must be set for completion
+    all_set = True
+    for flag_id in event_flags:
+        flag_set = get_flag_value(save_data, section1_offset, game_type, flag_id)
+        if not flag_set:
+            all_set = False
+            break
+    
+    return all_set
+
+
+def get_event_completion_status(save_data, game_type, game_name, event_key):
+    """
+    Get detailed completion status for an event.
+    
+    Returns:
+        dict: {
+            'complete': bool - All Pokemon caught/defeated
+            'flags_checked': int - Number of flags checked
+            'flags_set': int - Number of flags that are set
+            'details': list - Per-flag status
+        }
+    """
+    game_flags = EVENT_ENCOUNTER_FLAGS.get(game_name, {})
+    event_flags = game_flags.get(event_key, [])
+    
+    result = {
+        'complete': False,
+        'flags_checked': len(event_flags),
+        'flags_set': 0,
+        'details': []
+    }
+    
+    if not event_flags:
+        return result
+    
+    block_offset = get_active_block(save_data)
+    section1_offset = find_section_by_id(save_data, block_offset, 1)
+    
+    if section1_offset is None:
+        return result
+    
+    for flag_id in event_flags:
+        flag_set = get_flag_value(save_data, section1_offset, game_type, flag_id)
+        result['details'].append({
+            'flag_id': flag_id,
+            'set': flag_set
+        })
+        if flag_set:
+            result['flags_set'] += 1
+    
+    result['complete'] = (result['flags_set'] == result['flags_checked'])
+    
+    return result
