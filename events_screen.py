@@ -111,8 +111,7 @@ class EventsScreen:
         # Filter available events for current game
         self.available_events = self._get_available_events()
         
-        # Cache completion and ownership status (checked once, not every frame)
-        self._completion_cache = {}
+        # Cache ownership status (checked once, not every frame)
         self._ownership_cache = {}
         self._refresh_status_cache()
         
@@ -205,19 +204,16 @@ class EventsScreen:
         return available
     
     def _refresh_status_cache(self):
-        """Refresh the cached completion and ownership status for all events."""
-        self._completion_cache = {}
+        """Refresh the cached ownership status for all events."""
         self._ownership_cache = {}
         
         for event_key in self.available_events:
             self._ownership_cache[event_key] = self._check_has_item(event_key)
-            self._completion_cache[event_key] = self._check_event_complete(event_key)
         
         # Log status once
         for event_key in self.available_events:
             owned = self._ownership_cache.get(event_key, False)
-            complete = self._completion_cache.get(event_key, False)
-            status = "COMPLETE" if complete else ("OWNED" if owned else "Available")
+            status = "OWNED" if owned else "Available"
             print(f"[Events] {event_key}: {status}")
     
     def _check_has_item(self, event_key):
@@ -237,68 +233,6 @@ class EventsScreen:
             return has_event_item(self.manager.parser.data, self.game_type, event_key)
         except Exception as e:
             print(f"[Events] Error checking item: {e}")
-            return False
-    
-    def _check_event_complete(self, event_key):
-        """Check if event is truly complete using Sinew OT verification.
-        
-        Returns True only if:
-        1. The event encounter flag is set (Pokemon caught/defeated at location)
-        2. The player has the Pokemon with OT != "SINEW" (not just from achievement rewards)
-        
-        This prevents events from showing as "complete" just because the player
-        received the Pokemon as an achievement reward.
-        """
-        if not self.manager or not self.manager.is_loaded():
-            return False
-        
-        try:
-            from save_writer import is_event_truly_complete
-            
-            # CRITICAL: Verify the loaded save matches the expected game
-            # Parser returns "Ruby/Sapphire" or "FireRed/LeafGreen" for paired games
-            loaded_game = getattr(self.manager.parser, 'game_name', None)
-            if not self._is_compatible_save(loaded_game):
-                print(f"[Events] WARNING: Expected {self.game_name} but manager has {loaded_game} loaded - cannot check completion")
-                return False
-            
-            # Get party and PC data for OT checking
-            party = []
-            pc_pokemon = []
-            
-            try:
-                party = self.manager.get_party() or []
-            except Exception as e:
-                print(f"[Events] Could not get party: {e}")
-            
-            # Get PC Pokemon using get_box() method (same as main.py)
-            try:
-                if hasattr(self.manager, 'get_box'):
-                    for box_num in range(1, 15):
-                        box = self.manager.get_box(box_num)
-                        if box:
-                            for p in box:
-                                if p and not p.get('empty'):
-                                    pc_pokemon.append(p)
-            except Exception as e:
-                print(f"[Events] Could not get PC Pokemon: {e}")
-            
-            result = is_event_truly_complete(
-                self.manager.parser.data,
-                self.game_type,
-                self.game_name,
-                event_key,
-                party=party,
-                pc_pokemon=pc_pokemon
-            )
-            
-            print(f"[Events] {event_key} completion: {result}")
-            return result.get('complete', False)
-            
-        except Exception as e:
-            print(f"[Events] Error checking event completion: {e}")
-            import traceback
-            traceback.print_exc()
             return False
     
     def _load_claimed_events(self):
@@ -342,10 +276,6 @@ class EventsScreen:
     def _has_item_in_save(self, event_key):
         """Check if the current save already has this event item (uses cache)."""
         return self._ownership_cache.get(event_key, False)
-    
-    def _is_event_complete(self, event_key):
-        """Check if the event has been completed (uses cache)."""
-        return self._completion_cache.get(event_key, False)
     
     def _claim_event(self, event_key):
         """Claim an event item and add it to the current save"""
@@ -550,25 +480,19 @@ class EventsScreen:
             
             # Check status
             has_item = self._has_item_in_save(event_key)
-            is_complete = self._is_event_complete(event_key)
             
-            # Name
-            if is_complete:
-                name_color = (100, 200, 100)  # Green for complete
-            elif has_item:
-                name_color = (255, 200, 100)  # Yellow/orange for owned but incomplete
+            # Name color based on ownership
+            if has_item:
+                name_color = (100, 200, 100)  # Green for owned
             else:
                 name_color = (255, 255, 255)  # White for available
             name_surf = self.font_text.render(event_info['name'], True, name_color)
             surf.blit(name_surf, (item_rect.x + 48, item_rect.y + 4))
             
-            # Status badge - right side, colored appropriately
-            if is_complete:
-                status = "COMPLETE"
+            # Status badge - right side
+            if has_item:
+                status = "OWNED"
                 status_color = (100, 255, 100)  # Bright green
-            elif has_item:
-                status = "INCOMPLETE"
-                status_color = (255, 100, 100)  # Red - has ticket but hasn't caught Pokemon
             else:
                 status = "Available"
                 status_color = (200, 200, 100)  # Yellow

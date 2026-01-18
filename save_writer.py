@@ -1172,6 +1172,10 @@ def add_item_to_pocket(save_data, game_type, pocket_name, item_id, quantity=1):
     """
     Add an item to a specific pocket in the bag.
     If the item already exists, increases quantity (up to 999).
+    
+    NOTE: Key items are NOT encrypted in Gen 3 games - they store raw quantities.
+    Only regular items, balls, TMs, and berries use encryption.
+    
     Returns: tuple: (success: bool, message: str)
     """
     # Normalize game type
@@ -1188,7 +1192,14 @@ def add_item_to_pocket(save_data, game_type, pocket_name, item_id, quantity=1):
     if section1_offset is None:
         return (False, "Could not find Section 1")
     
-    item_key = get_item_encryption_key(save_data, section1_offset)
+    # Key items are NOT encrypted - they store raw quantity values
+    # Only encrypt for non-key-item pockets
+    use_encryption = (pocket_name != 'key_items')
+    
+    if use_encryption:
+        item_key = get_item_encryption_key(save_data, section1_offset)
+    else:
+        item_key = 0  # No encryption for key items
     
     pocket_config = ITEM_POCKET_OFFSETS.get(normalized_type, ITEM_POCKET_OFFSETS['RSE'])
     if pocket_name not in pocket_config:
@@ -1201,11 +1212,11 @@ def add_item_to_pocket(save_data, game_type, pocket_name, item_id, quantity=1):
     
     if existing_slot >= 0:
         slot_offset = pocket_offset + (existing_slot * 4)
-        qty_encrypted = struct.unpack('<H', save_data[slot_offset + 2:slot_offset + 4])[0]
-        current_qty = qty_encrypted ^ item_key
+        raw_qty = struct.unpack('<H', save_data[slot_offset + 2:slot_offset + 4])[0]
+        current_qty = raw_qty ^ item_key if use_encryption else raw_qty
         new_qty = min(999, current_qty + quantity)
-        new_qty_encrypted = new_qty ^ item_key
-        struct.pack_into('<H', save_data, slot_offset + 2, new_qty_encrypted)
+        new_qty_stored = new_qty ^ item_key if use_encryption else new_qty
+        struct.pack_into('<H', save_data, slot_offset + 2, new_qty_stored)
         print(f"[ItemWriter] Increased {item_id} quantity: {current_qty} -> {new_qty}")
     else:
         empty_slot = find_empty_slot_in_pocket(save_data, section1_offset, normalized_type, pocket_name)
@@ -1213,9 +1224,9 @@ def add_item_to_pocket(save_data, game_type, pocket_name, item_id, quantity=1):
             return (False, f"Pocket {pocket_name} is full!")
         slot_offset = pocket_offset + (empty_slot * 4)
         struct.pack_into('<H', save_data, slot_offset, item_id)
-        qty_encrypted = quantity ^ item_key
-        struct.pack_into('<H', save_data, slot_offset + 2, qty_encrypted)
-        print(f"[ItemWriter] Added item {item_id} x{quantity} to slot {empty_slot}")
+        qty_stored = quantity ^ item_key if use_encryption else quantity
+        struct.pack_into('<H', save_data, slot_offset + 2, qty_stored)
+        print(f"[ItemWriter] Added item {item_id} x{quantity} to slot {empty_slot} (encrypted={use_encryption})")
     
     update_section_checksum(save_data, section1_offset)
     return (True, f"Added item {item_id} x{quantity}")
@@ -1478,87 +1489,34 @@ def has_non_sinew_pokemon(party, pc_pokemon, species_ids):
 
 def is_event_truly_complete(save_data, game_type, game_name, event_key, party=None, pc_pokemon=None):
     """
-    Check if an event is truly complete - meaning the player actually caught
-    the event Pokemon (not just received it as a Sinew reward).
+    Check if an event is truly complete.
     
-    Logic:
-    1. If completion flag is NOT set → Event is incomplete
-    2. If completion flag IS set:
-       - For eon_ticket: Flag is enough (Latios/Latias are NOT Sinew rewards)
-       - For other events: Check if player has event Pokemon with OT != "SINEW"
+    SIMPLIFIED: We no longer track completion status for events.
+    The events system's purpose is to give players access to event locations,
+    and completion tracking was unreliable across different games/saves.
+    
+    Events will show as:
+    - "Available" if player doesn't have the ticket
+    - "Owned" if player has the ticket
     
     Args:
         save_data: Save file data (bytearray)
         game_type: 'RSE' or 'FRLG'
         game_name: Full game name ('Ruby', 'Emerald', 'FireRed', etc.)
         event_key: Event key ('eon_ticket', 'aurora_ticket', etc.)
-        party: Optional list of party Pokemon dicts with 'species' and 'ot_name' keys
-        pc_pokemon: Optional list of PC Pokemon dicts
+        party: Optional list of party Pokemon dicts (unused)
+        pc_pokemon: Optional list of PC Pokemon dicts (unused)
         
     Returns:
-        dict: {
-            'complete': bool - True if event is truly complete
-            'flag_set': bool - Whether the completion flag is set
-            'has_legit_catch': bool - Whether player has non-SINEW Pokemon
-            'reason': str - Explanation of the status
-        }
+        dict: Always returns complete=False to show "Owned" instead of "Complete"
     """
-    result = {
+    # Always return incomplete - we only track Available vs Owned now
+    return {
         'complete': False,
         'flag_set': False,
         'has_legit_catch': False,
-        'reason': 'Unknown'
+        'reason': 'Completion tracking disabled - events show as Available or Owned'
     }
-    
-    # First check if completion flag is set
-    flag_complete = is_event_encounter_complete(save_data, game_type, game_name, event_key)
-    result['flag_set'] = flag_complete
-    
-    if not flag_complete:
-        result['reason'] = 'Completion flag not set'
-        return result
-    
-    # For eon_ticket: Latios/Latias are NOT given as Sinew achievement rewards
-    # So if the flag is set, the player actually did the event
-    if event_key == 'eon_ticket':
-        result['complete'] = True
-        result['has_legit_catch'] = True
-        result['reason'] = 'Eon Ticket event completed (no Sinew reward exists for Latios/Latias)'
-        return result
-    
-    # For other events (aurora, mystic, old_sea_map), check for non-SINEW Pokemon
-    # since these ARE given as Sinew achievement rewards
-    species_ids = EVENT_POKEMON_IDS.get(event_key, [])
-    if not species_ids:
-        # No species to check, just use flag
-        result['complete'] = True
-        result['reason'] = 'No species check required'
-        return result
-    
-    # If no party/PC data provided, we can't verify OT
-    if party is None and pc_pokemon is None:
-        result['complete'] = False  # Be conservative - require verification
-        result['reason'] = 'Cannot verify OT (no Pokemon data provided)'
-        return result
-    
-    # Use empty lists if only one is None
-    if party is None:
-        party = []
-    if pc_pokemon is None:
-        pc_pokemon = []
-    
-    # Check if player has non-SINEW Pokemon of this species
-    has_legit = has_non_sinew_pokemon(party, pc_pokemon, species_ids)
-    result['has_legit_catch'] = has_legit
-    
-    if has_legit:
-        result['complete'] = True
-        result['reason'] = 'Player has legitimately caught Pokemon'
-    else:
-        result['complete'] = False
-        result['reason'] = 'Only SINEW reward Pokemon found (or none)'
-    
-    return result
 
 
 # =============================================================================
