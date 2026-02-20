@@ -766,6 +766,10 @@ class KeyboardMapper:
         self.listen_tab = self.active_tab
         self.listen_start = time.time()
         self.listen_keys = []
+        # Disable the controller's keyboard event filter so all
+        # KEYDOWN events (including nav-mapped keys) reach us
+        if self.controller:
+            self.controller.kb_filter_enabled = False
     
     def _stop_listening(self, save=True):
         if save and self.listen_keys:
@@ -777,10 +781,16 @@ class KeyboardMapper:
         self.listening = False
         self.listen_action = None
         self.listen_keys = []
+        # Re-enable the filter
+        if self.controller:
+            self.controller.kb_filter_enabled = True
     
     def on_close(self):
         self._save_bindings()
         self.visible = False
+        # Ensure filter is re-enabled if we were still listening
+        if self.controller:
+            self.controller.kb_filter_enabled = True
         if self.close_callback:
             self.close_callback()
     
@@ -1061,7 +1071,7 @@ class MainSetup:
                 {"name": "Reset Keyboard Defaults", "type": "button"},
             ],
             "Info": [
-                {"name": "Sinew Version", "type": "label", "value": "v1.3.2"},
+                {"name": "Sinew Version", "type": "label", "value": "v1.3.1"},
                 {"name": "Author", "type": "label", "value": "Cameron Penna"},
                 {"name": "Pokemon DB Status", "type": "label", "value": "Checking..."},
                 {"name": "About/Legal", "type": "button"},

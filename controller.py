@@ -805,7 +805,12 @@ class ControllerManager:
 
         Non-keyboard events and keyboard events for unmapped keys (F11,
         Alt, etc.) pass through unchanged.
+        
+        Set ``kb_filter_enabled = False`` to temporarily pass all events
+        through unfiltered (e.g. while a key-capture screen is active).
         """
+        if not getattr(self, 'kb_filter_enabled', True):
+            return events
         nav_keys = self.get_nav_keys()
         filtered = []
         for event in events:
