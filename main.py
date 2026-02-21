@@ -298,27 +298,115 @@ def find_rom_for_game(game_name, roms_dir):
     return None, None
 
 
+def find_save_for_game(game_name, saves_dir):
+    """
+    Search the saves directory for a .sav file matching the game's keywords.
+    Used as a fallback when no ROM is found, so save-only games are detected.
+
+    Args:
+        game_name: Name of the game (e.g., "FireRed")
+        saves_dir: Directory to search for .sav files
+
+    Returns:
+        str or None: Path to the first matching .sav file, or None
+    """
+    if game_name not in GAME_DEFINITIONS:
+        return None
+
+    game_def = GAME_DEFINITIONS[game_name]
+    keywords = game_def.get("keywords", [])
+    exclude  = game_def.get("exclude", [])
+
+    if not os.path.exists(saves_dir):
+        return None
+
+    for filename in os.listdir(saves_dir):
+        if not filename.lower().endswith('.sav'):
+            continue
+
+        name_lower = filename.lower()
+
+        # Check exclusions
+        if any(ex.lower() in name_lower for ex in exclude):
+            continue
+
+        # Check keywords
+        for keyword in keywords:
+            if keyword.lower() in name_lower:
+                sav_path = os.path.join(saves_dir, filename)
+                print(f"[GameScreen] Found save-only {game_name}: {filename}")
+                return sav_path
+
+    return None
+
+
 def detect_games():
     """
-    Detect all available games by scanning the ROMs directory.
-    
+    Detect all available games by scanning the ROMs and saves directories.
+
+    A game is included if it has a ROM, a save, or both.
+    Games with neither are omitted entirely (filtered later by availability).
+
     Returns:
         dict: Game configurations with detected ROM/save paths
     """
     games = {
         "Sinew": {"title_gif": None, "rom": None, "sav": None, "is_sinew": True},
     }
-    
+
     for game_name, game_def in GAME_DEFINITIONS.items():
         rom_path, sav_path = find_rom_for_game(game_name, config.ROMS_DIR)
-        
+
+        # If no ROM was found, still look for a matching save file independently
+        if rom_path is None:
+            sav_path = find_save_for_game(game_name, config.SAVES_DIR)
+
         games[game_name] = {
             "title_gif": game_def["title_gif"],
             "rom": rom_path,
             "sav": sav_path,
         }
-    
+
     return games
+
+
+# ---------------------------------------------------------------------------
+# Game Availability
+# ---------------------------------------------------------------------------
+# Three-state availability for a game entry.
+# UNAVAILABLE : no ROM and no save  → hide from all menus/navigation entirely
+# SAVE_ONLY   : save found, but no ROM → show in menus but Launch is disabled
+# FULL        : ROM found (save may or may not exist) → normal behaviour
+# Adding a new game type (e.g. a ROM hack) only requires adding it to
+# GAME_DEFINITIONS; availability is derived automatically from these states.
+
+GAME_UNAVAILABLE = "unavailable"
+GAME_SAVE_ONLY   = "save_only"
+GAME_FULL        = "full"
+
+
+def get_game_availability(game_data):
+    """
+    Return the availability state for a single game_data dict.
+
+    Args:
+        game_data: dict with optional keys 'rom' (path) and 'sav' (path)
+
+    Returns:
+        str: One of GAME_UNAVAILABLE, GAME_SAVE_ONLY, GAME_FULL
+    """
+    # Sinew itself is always available (it has no ROM/save of its own)
+    if game_data.get("is_sinew"):
+        return GAME_FULL
+
+    has_rom = bool(game_data.get("rom") and os.path.exists(game_data["rom"]))
+    has_sav = bool(game_data.get("sav") and os.path.exists(game_data["sav"]))
+
+    if has_rom:
+        return GAME_FULL
+    if has_sav:
+        return GAME_SAVE_ONLY
+    return GAME_UNAVAILABLE
 
 
 # Detect games on module load
@@ -1780,13 +1868,14 @@ class GameScreen:
         if self.controller:
             self.controller.set_swap_ab(enabled)
         
-        # Update emulator mapping if active
+        # Update emulator mapping if active (both gamepad and keyboard maps)
         if self.emulator:
             try:
                 from mgba_emulator import RETRO_DEVICE_ID_JOYPAD_A, RETRO_DEVICE_ID_JOYPAD_B
+                
+                # --- Gamepad button map ---
                 gmap = getattr(self.emulator, '_gamepad_map', None)
                 if gmap is not None:
-                    # Store original values on first call
                     if not hasattr(self.emulator, '_original_a_btn'):
                         self.emulator._original_a_btn = gmap.get(RETRO_DEVICE_ID_JOYPAD_A, 0)
                         self.emulator._original_b_btn = gmap.get(RETRO_DEVICE_ID_JOYPAD_B, 1)
@@ -1796,7 +1885,22 @@ class GameScreen:
                     else:
                         gmap[RETRO_DEVICE_ID_JOYPAD_A] = self.emulator._original_a_btn
                         gmap[RETRO_DEVICE_ID_JOYPAD_B] = self.emulator._original_b_btn
-                    print(f"[Sinew] Emulator A/B: A→btn{gmap[RETRO_DEVICE_ID_JOYPAD_A]}, B→btn{gmap[RETRO_DEVICE_ID_JOYPAD_B]}")
+                    print(f"[Sinew] Emulator gamepad A/B: A→btn{gmap[RETRO_DEVICE_ID_JOYPAD_A]}, B→btn{gmap[RETRO_DEVICE_ID_JOYPAD_B]}")
+                
+                # --- Keyboard map ---
+                kb_map = getattr(self.emulator, '_kb_map', None)
+                if kb_map is not None:
+                    if not hasattr(self.emulator, '_original_a_keys'):
+                        self.emulator._original_a_keys = kb_map.get(RETRO_DEVICE_ID_JOYPAD_A, [])
+                        self.emulator._original_b_keys = kb_map.get(RETRO_DEVICE_ID_JOYPAD_B, [])
+                    if enabled:
+                        kb_map[RETRO_DEVICE_ID_JOYPAD_A] = self.emulator._original_b_keys
+                        kb_map[RETRO_DEVICE_ID_JOYPAD_B] = self.emulator._original_a_keys
+                    else:
+                        kb_map[RETRO_DEVICE_ID_JOYPAD_A] = self.emulator._original_a_keys
+                        kb_map[RETRO_DEVICE_ID_JOYPAD_B] = self.emulator._original_b_keys
+                    print(f"[Sinew] Emulator kb A/B: A→{kb_map.get(RETRO_DEVICE_ID_JOYPAD_A)}, B→{kb_map.get(RETRO_DEVICE_ID_JOYPAD_B)}")
+                    
             except Exception as e:
                 print(f"[Sinew] Could not update emulator A/B swap: {e}")
         
@@ -1889,6 +1993,7 @@ class GameScreen:
         # Check if THIS game is currently running
         current_game = self.game_names[self.current_game]
         running_game = self._get_running_game_name()
+        availability = self.get_current_game_availability()
         
         if running_game and running_game == current_game:
             # This game is running - show Resume and Stop options
@@ -1898,8 +2003,11 @@ class GameScreen:
             # Different game is running - show that info and Stop option
             items.append(f"Playing: {running_game}")
             items.append("Stop Game")
+        elif availability == GAME_SAVE_ONLY:
+            # Save exists but no ROM — show disabled label instead of Launch Game
+            items.append("Save File Only")
         else:
-            # No game running
+            # No game running, full availability
             items.append("Launch Game")
         
         # Add standard menu items (from GAME_MENU_ITEMS, excluding Launch Game which we handle above)
@@ -2102,6 +2210,8 @@ class GameScreen:
         global GAMES
         GAMES = detect_games()
         
+        self.games = {}  # Reset so we rebuild cleanly
+        
         for gname, g in GAMES.items():
             game_data = g.copy()
             
@@ -2111,6 +2221,15 @@ class GameScreen:
                 game_data["rom"] = g_conf["rom"]
             if "sav" in g_conf:
                 game_data["sav"] = g_conf["sav"]
+            
+            # Stamp availability AFTER overrides so overridden paths are respected
+            availability = get_game_availability(game_data)
+            game_data["availability"] = availability
+            
+            # Skip games that have neither ROM nor save – hide them entirely
+            if availability == GAME_UNAVAILABLE:
+                print(f"[GameScreen] Hiding {gname}: no ROM and no save found")
+                continue
             
             # Load GIF frames (lazy - don't load until needed)
             game_data["frames"] = None
@@ -2124,11 +2243,15 @@ class GameScreen:
         self.game_names = list(self.games.keys())
         
         # Print detected games
-        detected = [g for g in self.game_names if g != "Sinew" and self.games[g].get("rom")]
-        if detected:
-            print(f"[GameScreen] Detected games: {', '.join(detected)}")
-        else:
-            print("[GameScreen] No ROMs detected in roms/ folder")
+        full_games  = [g for g in self.game_names if g != "Sinew" and self.games[g].get("availability") == GAME_FULL]
+        save_only   = [g for g in self.game_names if g != "Sinew" and self.games[g].get("availability") == GAME_SAVE_ONLY]
+        
+        if full_games:
+            print(f"[GameScreen] Detected games (full): {', '.join(full_games)}")
+        if save_only:
+            print(f"[GameScreen] Save-only games (no ROM): {', '.join(save_only)}")
+        if not full_games and not save_only:
+            print("[GameScreen] No ROMs or saves detected in roms/ and saves/ folders")
         
         # Load Sinew background image (scaled to screen size like other games)
         self.sinew_logo = None
@@ -2310,6 +2433,13 @@ class GameScreen:
         """Get current game name"""
         return self.game_names[self.current_game] if self.game_names else "Unknown"
     
+    def get_current_game_availability(self):
+        """Return the availability state of the currently selected game."""
+        gname = self.get_current_game_name()
+        if gname in self.games:
+            return self.games[gname].get("availability", GAME_FULL)
+        return GAME_FULL
+    
     def _launch_game(self):
         """Launch the current game ROM using integrated emulator"""
         # Sinew doesn't have a ROM to launch
@@ -2336,7 +2466,14 @@ class GameScreen:
         sav_path = self.games[gname].get("sav")
         
         if not rom_path or not os.path.exists(rom_path):
-            print(f"ROM not found: {rom_path}")
+            # Check if it's a save-only game to give a better message
+            if self.games[gname].get("availability") == GAME_SAVE_ONLY:
+                self._show_notification(
+                    f"{gname}: No ROM found",
+                    "Place a matching .gba ROM in the roms/ folder"
+                )
+            else:
+                print(f"ROM not found: {rom_path}")
             return
         
         # Try integrated emulator first
@@ -2899,6 +3036,15 @@ class GameScreen:
             self._launch_game()
             return
         
+        if name == "Save File Only":
+            # No ROM available - show informational notification, do nothing else
+            gname = self.game_names[self.current_game]
+            self._show_notification(
+                f"{gname}: No ROM found",
+                "Place a matching .gba ROM in the roms/ folder"
+            )
+            return
+        
         if name == "Resume Game":
             # Resume the currently paused game
             if self.emulator and self.emulator.loaded:
@@ -3317,12 +3463,49 @@ class GameScreen:
             # Ensure menu_index is within bounds (menu can change dynamically)
             if self.menu_index >= len(menu_items):
                 self.menu_index = 0
+            
+            current_menu_item = menu_items[self.menu_index]
+            is_disabled = (current_menu_item == "Save File Only")
+            
             menu_button = Button(
-                menu_items[self.menu_index],
+                current_menu_item,
                 rel_rect=(0.25, 0.65, 0.5, 0.12),
                 callback=lambda: None
             )
-            menu_button.draw(surf, self.font)
+            
+            if is_disabled:
+                # Draw a visually distinct greyed-out version
+                btn_rect = menu_button.rect if hasattr(menu_button, 'rect') else None
+                # Compute rect the same way Button does
+                bx = int(0.25 * self.width)
+                by = int(0.65 * self.height)
+                bw = int(0.5  * self.width)
+                bh = int(0.12 * self.height)
+                btn_rect = pygame.Rect(bx, by, bw, bh)
+                
+                # Greyed-out fill and muted border
+                pygame.draw.rect(surf, (50, 50, 55), btn_rect, border_radius=4)
+                pygame.draw.rect(surf, (80, 80, 85), btn_rect, 2, border_radius=4)
+                
+                # Dim text
+                try:
+                    btn_font = pygame.font.Font(config.FONT_PATH, 14)
+                except Exception:
+                    btn_font = self.font
+                txt_surf = btn_font.render(current_menu_item, True, (100, 100, 105))
+                txt_rect = txt_surf.get_rect(center=btn_rect.center)
+                surf.blit(txt_surf, txt_rect)
+                
+                # Small lock / no-entry icon hint below
+                try:
+                    hint2_font = pygame.font.Font(config.FONT_PATH, 7)
+                except Exception:
+                    hint2_font = pygame.font.SysFont(None, 12)
+                hint2_surf = hint2_font.render("No ROM — place a .gba file in roms/", True, (90, 90, 90))
+                hint2_rect = hint2_surf.get_rect(centerx=self.width // 2, top=btn_rect.bottom + 3)
+                surf.blit(hint2_surf, hint2_rect)
+            else:
+                menu_button.draw(surf, self.font)
             
             # Draw navigation hints at bottom of screen
             hint_text = "< > Change Game    ^ v Scroll Menu"
