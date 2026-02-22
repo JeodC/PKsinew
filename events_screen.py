@@ -236,40 +236,80 @@ class EventsScreen:
             return False
     
     def _load_claimed_events(self):
-        """Load which events have been claimed from sinew_data.json"""
+        """
+        Load which events have been claimed for the current game from sinew_data.json.
+
+        Storage format (per-game):
+            { "events_claimed": { "LeafGreen": { "aurora_ticket": true }, "Ruby": { "eon_ticket": true } } }
+
+        Legacy flat format (pre-fix) is detected and ignored for safety — it will be
+        replaced with the per-game format the next time a claim is saved.
+            { "events_claimed": { "eon_ticket": true } }
+        """
         try:
             data_path = os.path.join("data", "sinew_data.json")
             if os.path.exists(data_path):
                 with open(data_path, 'r') as f:
                     data = json.load(f)
-                    return data.get('events_claimed', {})
+
+                all_claimed = data.get('events_claimed', {})
+
+                # Detect legacy flat format: values are bools rather than dicts
+                is_legacy = bool(all_claimed) and all(
+                    isinstance(v, bool) for v in all_claimed.values()
+                )
+
+                if is_legacy:
+                    # Cannot safely attribute legacy data to any specific game.
+                    # Return empty — will be overwritten with per-game format on next claim.
+                    print(f"[Events] Legacy flat events_claimed detected — will migrate on next save")
+                    return {}
+
+                # Per-game format: return only this game's claimed dict
+                if self.game_name:
+                    return dict(all_claimed.get(self.game_name, {}))
+
         except Exception as e:
             print(f"[Events] Error loading claimed events: {e}")
-        
+
         return {}
     
     def _save_claimed_events(self):
-        """Save claimed events to sinew_data.json"""
+        """
+        Save claimed events for the current game to sinew_data.json.
+
+        Writes in per-game format:
+            { "events_claimed": { "LeafGreen": { "aurora_ticket": true }, ... } }
+        """
+        if not self.game_name:
+            print(f"[Events] Cannot save claimed events — no game_name set")
+            return
+
         try:
             data_path = os.path.join("data", "sinew_data.json")
-            
-            # Load existing data
+
             data = {}
             if os.path.exists(data_path):
                 with open(data_path, 'r') as f:
                     data = json.load(f)
-            
-            # Update events claimed
-            data['events_claimed'] = self.claimed_events
-            
-            # Ensure data directory exists
+
+            existing = data.get('events_claimed', {})
+
+            # If the existing structure is the old flat format, wipe it cleanly
+            is_legacy = bool(existing) and all(isinstance(v, bool) for v in existing.values())
+            if is_legacy:
+                print(f"[Events] Replacing legacy flat events_claimed with per-game format")
+                existing = {}
+
+            # Write only this game's slice — preserve all other games
+            existing[self.game_name] = self.claimed_events
+            data['events_claimed'] = existing
+
             os.makedirs(os.path.dirname(data_path), exist_ok=True)
-            
-            # Write back
             with open(data_path, 'w') as f:
                 json.dump(data, f, indent=2)
-            
-            print(f"[Events] Saved claimed events")
+
+            print(f"[Events] Saved claimed events for {self.game_name}: {self.claimed_events}")
         except Exception as e:
             print(f"[Events] Error saving claimed events: {e}")
     
@@ -295,9 +335,15 @@ class EventsScreen:
             
             event_info = EVENT_ITEMS[event_key]
             
-            # Check if already has item - this is the only thing that blocks claiming
+            # Primary guard: item physically present in the save's key items pocket
             if self._has_item_in_save(event_key):
                 self._show_message(f"Already have {event_info['name']}!", (255, 200, 100))
+                return False
+
+            # Secondary guard: Sinew's per-game claim record (catches cases where
+            # the save was reset/corrupted but a ticket was already distributed)
+            if self.claimed_events.get(event_key, False):
+                self._show_message(f"{event_info['name']} already distributed!", (255, 200, 100))
                 return False
             
             # Add the item to save data
@@ -312,7 +358,7 @@ class EventsScreen:
                 # Write the modified save
                 write_save_file(self.manager.save_path, self.manager.parser.data, create_backup_first=True)
                 
-                # Mark as claimed globally
+                # Record this claim for this game in sinew_data.json
                 self.claimed_events[event_key] = True
                 self._save_claimed_events()
                 

@@ -3252,7 +3252,6 @@ class GameScreen:
         ach_id = achievement_map.get(event_key)
         if ach_id and self._achievement_manager:
             try:
-                # Try to find and unlock the achievement
                 from achievements_data import get_achievements_for
                 sinew_achs = get_achievements_for("Sinew")
                 for ach in sinew_achs:
@@ -3262,22 +3261,27 @@ class GameScreen:
             except Exception as e:
                 print(f"[Sinew] Error unlocking event achievement: {e}")
         
-        # Check if all events have been claimed for the collector achievement
+        # Check if all 4 events have been claimed across any games for the collector achievement.
+        # events_claimed is now per-game: { "Ruby": {"eon_ticket": true}, "LeafGreen": {...} }
+        # We flatten across all games to see if every ticket has been given out at least once.
         try:
             data_path = os.path.join("data", "sinew_data.json")
             if os.path.exists(data_path):
                 with open(data_path, 'r') as f:
                     data = json.load(f)
-                events = data.get('events_claimed', {})
-                
-                # Check if all 4 events are claimed
-                if all([
-                    events.get('eon_ticket', False),
-                    events.get('aurora_ticket', False),
-                    events.get('mystic_ticket', False),
-                    events.get('old_sea_map', False),
-                ]):
-                    # Unlock Event Collector achievement
+
+                all_claimed = data.get('events_claimed', {})
+
+                # Flatten: collect every ticket key claimed across all games
+                claimed_anywhere = set()
+                for game_data in all_claimed.values():
+                    if isinstance(game_data, dict):
+                        for k, v in game_data.items():
+                            if v:
+                                claimed_anywhere.add(k)
+
+                all_four = {'eon_ticket', 'aurora_ticket', 'mystic_ticket', 'old_sea_map'}
+                if all_four.issubset(claimed_anywhere):
                     from achievements_data import get_achievements_for
                     sinew_achs = get_achievements_for("Sinew")
                     for ach in sinew_achs:
