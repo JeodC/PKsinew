@@ -64,7 +64,7 @@ from controller import get_controller, NavigableList
 try:
     from save_writer import (
         load_save_file, write_save_file, write_pokemon_to_pc, 
-        clear_pc_slot
+        clear_pc_slot, find_section_by_id, get_active_block
     )
     SAVE_WRITER_AVAILABLE = True
 except ImportError:
@@ -2107,6 +2107,20 @@ class PCBox:
             self._cancel_move_mode()
             return
         
+        # Check that destination save has PC storage initialized (requires Pokedex).
+        # Saves made before receiving the Pokedex have uninitialized section IDs (0xFFFF)
+        # and cannot store transferred Pokemon.
+        if SAVE_WRITER_AVAILABLE:
+            try:
+                _check_data = load_save_file(current_save_path)
+                _block_offset = get_active_block(_check_data)
+                if find_section_by_id(_check_data, _block_offset, 5) is None:
+                    self._show_warning("Save too early in game!\nGet the Pokedex first,\nthen save before transferring.")
+                    self._cancel_move_mode()
+                    return
+            except Exception as _e:
+                print(f"[PCBox] PC init check failed: {_e}", file=sys.stderr, flush=True)
+        
         # Check obedience warning
         obedience_warning = None
         pokemon_level = self.moving_pokemon.get('level', 1)
@@ -2355,6 +2369,19 @@ class PCBox:
         
         # Get the current save path for destination
         current_save_path = getattr(self.manager, 'current_save_path', None)
+        
+        # Check that destination save has PC storage initialized (requires Pokedex).
+        # Saves made before receiving the Pokedex have uninitialized section IDs (0xFFFF).
+        if SAVE_WRITER_AVAILABLE and current_save_path:
+            try:
+                _check_data = load_save_file(current_save_path)
+                _block_offset = get_active_block(_check_data)
+                if find_section_by_id(_check_data, _block_offset, 5) is None:
+                    self._show_warning("Save too early in game!\nGet the Pokedex first,\nthen save before transferring.")
+                    self._cancel_move_mode()
+                    return
+            except Exception as _e:
+                print(f"[PCBox] PC init check failed: {_e}", file=sys.stderr, flush=True)
         
         # Store destination info for confirmation
         self.pending_move_dest = {
