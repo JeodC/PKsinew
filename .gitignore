@@ -6,51 +6,49 @@
 # --- ROMs (never commit) ---
 
 # Ignore all files in roms except the README
-roms/*
-!roms/README.txt
+dist/roms/*
+!dist/roms/README.txt
 
 
 # --- Runtime / generated data ---
 cache/
 temp/
 tmp/
-logs/
-saves/
+system/
 
 generated/
 backups/
 lib/
-data/sprites/gen3/normal/**
-!data/sprites/gen3/normal/egg.png
-data/sprites/gen3/shiny/*
-data/sprites/gen8
-data/sprites/items/master-ball.png
-data/sprites/items/poke-ball.png
-data/achievements/rewards/backup
-data/achievements_progress.json
-data/pokemon_db.json
 exports/
 include/
 scripts/
-sinew_settings.json
-sinew/sinew_storage.json
-sinew/sinew_storage_backup.json
-data/sinew_data.json
-data/sprites/title/emerald.gif
-data/sprites/title/Ruby.gif
-data/sprites/title/Sapphire.gif
-data/sprites/title/firered.gif
-data/sprites/title/leafgreen.gif
-data/sprites/title/backup
+dist/data/sprites/gen3/normal/**
+!dist/data/sprites/gen3/normal/egg.png
+dist/data/sprites/gen3/shiny/*
+dist/data/sprites/gen8
+dist/data/sprites/items/master-ball.png
+dist/data/sprites/items/poke-ball.png
+dist/data/achievements/rewards/backup
+dist/data/achievements_progress.json
+dist/data/pokemon_db.json
+dist/data/sprites/title/emerald.gif
+dist/data/sprites/title/Ruby.gif
+dist/data/sprites/title/Sapphire.gif
+dist/data/sprites/title/firered.gif
+dist/data/sprites/title/leafgreen.gif
+dist/data/sprites/title/backup
+dist/logs/
+dist/saves/
+dist/PKsinew*
 sinew.log
 sinew.log.1
 # --- Build / packaged output ---
 build/
-dist/
 out/
 
 # --- Python ---
 __pycache__/
+venv/
 *.pyc
 *.pyo
 
