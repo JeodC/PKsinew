@@ -3,6 +3,7 @@
 A modular Python parser for Generation 3 Pokemon save files.
 
 ## Supported Games
+
 - Pokemon FireRed, LeafGreen, Ruby, Sapphire, Emerald
 
 ## Structure
@@ -35,6 +36,7 @@ if parser.loaded:
 ## Migration
 
 Replace your import:
+
 ```python
 # Old:
 from gen3_save_parser import Gen3SaveParser

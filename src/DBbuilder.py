@@ -6,22 +6,24 @@ Only downloads missing files and metadata.
 Saves everything under data/ with separate folders.
 """
 
-import requests
 import json
 import os
 import time
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
+import requests
 
 try:
     import config
 except ImportError as e:
     print(f"ERROR: Could not import config: {e}", flush=True)
     import sys
+
     print("sys.path:", sys.path, flush=True)
     exit(1)
 
 # --------- Config ----------
-MAX_POKEMON = 386             # up to Emerald
+MAX_POKEMON = 386  # up to Emerald
 SPRITES_DIR = os.path.join(config.DATA_DIR, "sprites")
 GEN3_NORMAL_DIR = os.path.join(SPRITES_DIR, "gen3", "normal")
 GEN3_SHINY_DIR = os.path.join(SPRITES_DIR, "gen3", "shiny")
@@ -36,6 +38,7 @@ for d in (GEN3_NORMAL_DIR, GEN3_SHINY_DIR, ITEMS_DIR):
 # HTTP
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "Sinew-PokeFetcher/1.0 (+https://example)"})
+
 
 # -------------------------------------------------------------------
 # Download helper — ONLY downloads if file does NOT already exist
@@ -53,6 +56,7 @@ def download_file(url: Optional[str], dest_path: str, timeout: float = 10.0) -> 
     except Exception:
         return False
 
+
 # extract first english flavor text from species object
 def get_english_description(species_data: Dict) -> Optional[str]:
     for entry in species_data.get("flavor_text_entries", []):
@@ -60,6 +64,7 @@ def get_english_description(species_data: Dict) -> Optional[str]:
             text = entry.get("flavor_text", "")
             return text.replace("\n", " ").replace("\f", " ").strip()
     return None
+
 
 # recursion for evolution parsing
 def parse_evolution_chain(chain_node: Dict) -> List[Dict]:
@@ -85,6 +90,7 @@ def parse_evolution_chain(chain_node: Dict) -> List[Dict]:
             return [{"base": results[0], "branches": extended}]
     return results
 
+
 # -------------------------
 # Item sprites (Poké Ball, Master Ball, Eggs)
 # -------------------------
@@ -93,7 +99,7 @@ ITEM_SPRITES = {
     "master_ball": "master-ball.png",
     "2km_egg": "2km-egg.png",
     "5km_egg": "5km-egg.png",
-    "10km_egg": "10km-egg.png"
+    "10km_egg": "10km-egg.png",
 }
 
 for key, filename in ITEM_SPRITES.items():
@@ -121,20 +127,28 @@ if "items" not in pokemon_db:
 # Iterate Pokémon
 # -------------------------
 for i in range(1, MAX_POKEMON + 1):
-    if 'ui_instance' in globals() and getattr(ui_instance, 'cancel_requested', False):
+    if "ui_instance" in globals() and getattr(ui_instance, "cancel_requested", False):
         break
     pid_str = f"{i:03d}"
 
     db_entry = pokemon_db.get(pid_str, {})
-    has_height_weight = db_entry.get("height") is not None and db_entry.get("weight") is not None
+    has_height_weight = (
+        db_entry.get("height") is not None and db_entry.get("weight") is not None
+    )
 
     required_files = [
         os.path.join(GEN3_NORMAL_DIR, f"{pid_str}.png"),
         os.path.join(GEN3_SHINY_DIR, f"{pid_str}.png"),
     ]
 
-    if db_entry and has_height_weight and all(os.path.exists(f) for f in required_files):
-        print(f"[{pid_str}] {db_entry.get('name', str(i))}: all files already exist, skipping")
+    if (
+        db_entry
+        and has_height_weight
+        and all(os.path.exists(f) for f in required_files)
+    ):
+        print(
+            f"[{pid_str}] {db_entry.get('name', str(i))}: all files already exist, skipping"
+        )
         continue
 
     try:
@@ -143,7 +157,10 @@ for i in range(1, MAX_POKEMON + 1):
 
         p_resp = SESSION.get(pokemon_url, timeout=10)
         if p_resp.status_code != 200:
-            print(f"[{pid_str}] FAILED pokemon endpoint ({p_resp.status_code})", flush=True)
+            print(
+                f"[{pid_str}] FAILED pokemon endpoint ({p_resp.status_code})",
+                flush=True,
+            )
             time.sleep(0.2)
             continue
 
@@ -154,10 +171,13 @@ for i in range(1, MAX_POKEMON + 1):
         name = p_data.get("name")
         display_name = name.capitalize() if name else str(i)
 
-        height = p_data.get("height")   # decimeters
-        weight = p_data.get("weight")   # hectograms
+        height = p_data.get("height")  # decimeters
+        weight = p_data.get("weight")  # hectograms
 
-        gen3_versions = p_data.get("sprites", {}).get("versions", {}).get("generation-iii", {}) or {}
+        gen3_versions = (
+            p_data.get("sprites", {}).get("versions", {}).get("generation-iii", {})
+            or {}
+        )
         gen3_emerald = gen3_versions.get("emerald") or {}
         gen3_frlg = gen3_versions.get("firered-leafgreen") or {}
         gen3_rs = gen3_versions.get("ruby-sapphire") or {}
@@ -202,7 +222,9 @@ for i in range(1, MAX_POKEMON + 1):
         if evo_url:
             evo_resp = SESSION.get(evo_url, timeout=10)
             if evo_resp.status_code == 200:
-                evolution_chain_info = parse_evolution_chain(evo_resp.json().get("chain", {}))
+                evolution_chain_info = parse_evolution_chain(
+                    evo_resp.json().get("chain", {})
+                )
 
         description = get_english_description(species_data)
 
@@ -219,10 +241,18 @@ for i in range(1, MAX_POKEMON + 1):
             "stats": stats,
             "evolution_chain": evolution_chain_info,
             "sprites": {
-                "gen3_normal": f"sprites/gen3/normal/{pid_str}.png" if os.path.exists(gen3_normal_path) else None,
-                "gen3_shiny": f"sprites/gen3/shiny/{pid_str}.png" if os.path.exists(gen3_shiny_path) else None,
+                "gen3_normal": (
+                    f"sprites/gen3/normal/{pid_str}.png"
+                    if os.path.exists(gen3_normal_path)
+                    else None
+                ),
+                "gen3_shiny": (
+                    f"sprites/gen3/shiny/{pid_str}.png"
+                    if os.path.exists(gen3_shiny_path)
+                    else None
+                ),
             },
-            "games": ["Ruby", "Sapphire", "Emerald", "FireRed", "LeafGreen"]
+            "games": ["Ruby", "Sapphire", "Emerald", "FireRed", "LeafGreen"],
         }
 
         parts = []
@@ -232,9 +262,13 @@ for i in range(1, MAX_POKEMON + 1):
             parts.append("gen3-shiny")
 
         if parts:
-            print(f"[{pid_str}] {display_name}: downloaded {', '.join(parts)}, h={height} w={weight}")
+            print(
+                f"[{pid_str}] {display_name}: downloaded {', '.join(parts)}, h={height} w={weight}"
+            )
         else:
-            print(f"[{pid_str}] {display_name}: updated metadata, h={height} w={weight}")
+            print(
+                f"[{pid_str}] {display_name}: updated metadata, h={height} w={weight}"
+            )
 
         time.sleep(0.15)
 

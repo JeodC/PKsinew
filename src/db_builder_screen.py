@@ -3,53 +3,55 @@ Database Builder Screen
 Shows a terminal-like output box for building/rebuilding the Pokemon database
 """
 
-import os
-import sys
-import subprocess
-import threading
-import runpy
 import io
+import os
+import runpy
+import subprocess
+import sys
+import threading
 import traceback
+
 import pygame
-import ui_colors
-from controller import get_controller, NavigableList
 
 import config
-from config import FONT_PATH, BASE_DIR
+import ui_colors
+from config import BASE_DIR, FONT_PATH
+from controller import NavigableList, get_controller
+
 
 class DBBuilderScreen:
     """Screen for building/rebuilding the Pokemon database with live output"""
-    
+
     def __init__(self, width, height, close_callback=None):
         self.width = width
         self.height = height
         self.visible = True
         self.close_callback = close_callback
         self.controller = get_controller()
-        
+
         # Fonts
         self.font_header = pygame.font.Font(FONT_PATH, 16)
         self.font_terminal = pygame.font.Font(FONT_PATH, 10)
         self.font_button = pygame.font.Font(FONT_PATH, 10)
-        
+
         # Terminal output lines
         self.terminal_lines = []
         self.max_lines = 100  # Keep last 100 lines
         self.scroll_offset = 0  # For scrolling through output
-        
+
         # Build state
         self.is_building = False
         self.build_thread = None
         self.build_process = None
-        
+
         # UI state - buttons stacked vertically on the right
         self.selected_button = 0
         self.buttons = ["Build Pokemon DB", "Build Wallpapers", "Back"]
-        
+
         # Debounce for clicks
         self._last_click_time = 0
         self._click_debounce_ms = 300  # 300ms debounce
-        
+
         # Add initial message
         self._add_line("Database & Asset Builder")
         self._add_line("=" * 35)
@@ -62,7 +64,7 @@ class DBBuilderScreen:
         self._add_line("  Generates title wallpapers")
         self._add_line("  for each game.")
         self._add_line("")
-    
+
     def _add_line(self, text):
         """Add a line to the terminal output"""
         # Split long lines
@@ -71,14 +73,14 @@ class DBBuilderScreen:
             self.terminal_lines.append(text[:max_chars])
             text = text[max_chars:]
         self.terminal_lines.append(text)
-        
+
         # Trim to max lines
         if len(self.terminal_lines) > self.max_lines:
-            self.terminal_lines = self.terminal_lines[-self.max_lines:]
-        
+            self.terminal_lines = self.terminal_lines[-self.max_lines :]
+
         # Auto-scroll to bottom
         self._scroll_to_bottom()
-    
+
     def _scroll_to_bottom(self):
         """Scroll to show the latest output"""
         visible_lines = self._get_visible_line_count()
@@ -86,29 +88,30 @@ class DBBuilderScreen:
             self.scroll_offset = len(self.terminal_lines) - visible_lines
         else:
             self.scroll_offset = 0
-    
+
     def _get_visible_line_count(self):
         """Calculate how many lines fit in the terminal area"""
         terminal_height = self.height - 70  # Header + padding
         line_height = 14
         return max(1, terminal_height // line_height)
-    
+
     def _start_build(self):
         """Start the database build process in a background thread"""
         if self.is_building:
             return
-        
+
         self.is_building = True
         self.terminal_lines = []
         self._add_line("Starting database build...")
         self._add_line("")
-        
+
         # Start build in background thread
         self.build_thread = threading.Thread(target=self._run_build, daemon=True)
         self.build_thread.start()
 
     def _run_build(self):
         """Run the build process and capture output"""
+
         def execute_in_thread():
             self.is_building = True
             self.cancel_requested = False
@@ -116,9 +119,9 @@ class DBBuilderScreen:
             old_stderr = sys.stderr
 
             try:
-                # sys._MEIPASS is the temporary folder where PyInstaller 
+                # sys._MEIPASS is the temporary folder where PyInstaller
                 # extracts all bundled libraries.
-                if getattr(sys, 'frozen', False):
+                if getattr(sys, "frozen", False):
                     bundle_dir = sys._MEIPASS
                     if bundle_dir not in sys.path:
                         sys.path.insert(0, bundle_dir)
@@ -127,23 +130,28 @@ class DBBuilderScreen:
 
                 # Logging Redirector
                 class UILogger:
-                    def __init__(self, func): self.func = func
-                    def write(self, s): 
-                        if s.strip(): self.func(s.strip())
-                    def flush(self): pass
+                    def __init__(self, func):
+                        self.func = func
+
+                    def write(self, s):
+                        if s.strip():
+                            self.func(s.strip())
+
+                    def flush(self):
+                        pass
 
                 sys.stdout = UILogger(self._add_line)
                 sys.stderr = UILogger(self._add_line)
 
                 # Use init_globals=globals() so it inherits already loaded modules
                 custom_globals = globals().copy()
-                custom_globals.update({
-                    'ui_instance': self,
-                    'config': config,
-                    '__name__': '__main__'
-                })
-                runpy.run_path(script_path, init_globals=custom_globals, run_name="__main__")
-                
+                custom_globals.update(
+                    {"ui_instance": self, "config": config, "__name__": "__main__"}
+                )
+                runpy.run_path(
+                    script_path, init_globals=custom_globals, run_name="__main__"
+                )
+
                 self._add_line("Build finished successfully!")
 
             except Exception as e:
@@ -154,24 +162,28 @@ class DBBuilderScreen:
                 self.is_building = False
 
         import threading
+
         threading.Thread(target=execute_in_thread, daemon=True).start()
-    
+
     def _start_wallpaper_build(self):
         """Start the wallpaper generation in a background thread"""
         if self.is_building:
             return
-        
+
         self.is_building = True
         self.terminal_lines = []
         self._add_line("Starting wallpaper generation...")
         self._add_line("")
-        
+
         # Start build in background thread
-        self.build_thread = threading.Thread(target=self._run_wallpaper_build, daemon=True)
+        self.build_thread = threading.Thread(
+            target=self._run_wallpaper_build, daemon=True
+        )
         self.build_thread.start()
-    
+
     def _run_wallpaper_build(self):
         """Run wallgen.py and capture output"""
+
         def execute():
             self.is_building = True
             self.cancel_requested = False
@@ -180,34 +192,40 @@ class DBBuilderScreen:
 
             try:
                 import config
+
                 # Ensure internal libs are accessible
-                bundle_dir = getattr(sys, '_MEIPASS', config.BASE_DIR)
+                bundle_dir = getattr(sys, "_MEIPASS", config.BASE_DIR)
                 if bundle_dir not in sys.path:
                     sys.path.insert(0, bundle_dir)
 
                 script_path = os.path.join(config.BASE_DIR, "wallgen.py")
-                    
+
                 # Use the same UILogger class we defined for the DB builder
                 class UILogger:
-                    def __init__(self, func): self.func = func
-                    def write(self, s): 
-                        if s.strip(): self.func(s.strip())
-                    def flush(self): pass
+                    def __init__(self, func):
+                        self.func = func
+
+                    def write(self, s):
+                        if s.strip():
+                            self.func(s.strip())
+
+                    def flush(self):
+                        pass
 
                 sys.stdout = UILogger(self._add_line)
                 sys.stderr = sys.stdout
 
                 self._add_line(f"Starting wallpaper generation...")
-                    
+
                 # Execute the script
                 custom_globals = globals().copy()
-                custom_globals.update({
-                    'ui_instance': self,
-                    'config': config,
-                    '__name__': '__main__'
-                })
-                runpy.run_path(script_path, init_globals=custom_globals, run_name="__main__")
-                    
+                custom_globals.update(
+                    {"ui_instance": self, "config": config, "__name__": "__main__"}
+                )
+                runpy.run_path(
+                    script_path, init_globals=custom_globals, run_name="__main__"
+                )
+
                 self._add_line("=" * 35)
                 self._add_line("Wallpapers generated!")
 
@@ -222,17 +240,17 @@ class DBBuilderScreen:
 
         self.build_thread = threading.Thread(target=execute, daemon=True)
         self.build_thread.start()
-    
+
     def _cancel_build(self):
         if self.is_building:
             self._add_line("Cancelling...")
             self.is_building = False
             self.cancel_requested = True
-    
+
     def handle_events(self, events):
         """Handle pygame events"""
         current_time = pygame.time.get_ticks()
-        
+
         for event in events:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -248,21 +266,25 @@ class DBBuilderScreen:
                 elif event.key == pygame.K_UP:
                     self.selected_button = max(0, self.selected_button - 1)
                 elif event.key == pygame.K_DOWN:
-                    self.selected_button = min(len(self.buttons) - 1, self.selected_button + 1)
+                    self.selected_button = min(
+                        len(self.buttons) - 1, self.selected_button + 1
+                    )
                 elif event.key == pygame.K_LEFT:
                     # Scroll up
                     self.scroll_offset = max(0, self.scroll_offset - 1)
                 elif event.key == pygame.K_RIGHT:
                     # Scroll down
-                    max_scroll = max(0, len(self.terminal_lines) - self._get_visible_line_count())
+                    max_scroll = max(
+                        0, len(self.terminal_lines) - self._get_visible_line_count()
+                    )
                     self.scroll_offset = min(max_scroll, self.scroll_offset + 1)
-            
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left click
                     # Debounce check
                     if current_time - self._last_click_time < self._click_debounce_ms:
                         continue
-                    
+
                     # Check button clicks
                     button_rects = self._get_button_rects()
                     for i, rect in enumerate(button_rects):
@@ -271,7 +293,7 @@ class DBBuilderScreen:
                             self.selected_button = i
                             self._activate_button()
                             break
-    
+
     def _get_button_rects(self):
         """Get the rectangles for each button (stacked vertically on right side)"""
         button_width = 110
@@ -279,50 +301,52 @@ class DBBuilderScreen:
         button_spacing = 8
         button_x = self.width - button_width - 15
         start_y = 55
-        
+
         rects = []
         for i in range(len(self.buttons)):
             btn_y = start_y + i * (button_height + button_spacing)
             rects.append(pygame.Rect(button_x, btn_y, button_width, button_height))
         return rects
-    
+
     def handle_controller(self, ctrl):
         """Handle controller input"""
         if not ctrl:
             return
-        
+
         current_time = pygame.time.get_ticks()
-        
+
         # D-pad for button selection (up/down) and scrolling (left/right)
-        if ctrl.is_dpad_just_pressed('up'):
-            ctrl.consume_dpad('up')
+        if ctrl.is_dpad_just_pressed("up"):
+            ctrl.consume_dpad("up")
             self.selected_button = max(0, self.selected_button - 1)
-        elif ctrl.is_dpad_just_pressed('down'):
-            ctrl.consume_dpad('down')
+        elif ctrl.is_dpad_just_pressed("down"):
+            ctrl.consume_dpad("down")
             self.selected_button = min(len(self.buttons) - 1, self.selected_button + 1)
-        elif ctrl.is_dpad_just_pressed('left'):
-            ctrl.consume_dpad('left')
+        elif ctrl.is_dpad_just_pressed("left"):
+            ctrl.consume_dpad("left")
             self.scroll_offset = max(0, self.scroll_offset - 3)
-        elif ctrl.is_dpad_just_pressed('right'):
-            ctrl.consume_dpad('right')
-            max_scroll = max(0, len(self.terminal_lines) - self._get_visible_line_count())
+        elif ctrl.is_dpad_just_pressed("right"):
+            ctrl.consume_dpad("right")
+            max_scroll = max(
+                0, len(self.terminal_lines) - self._get_visible_line_count()
+            )
             self.scroll_offset = min(max_scroll, self.scroll_offset + 3)
-        
+
         # A to activate (with debounce)
-        if ctrl.is_button_just_pressed('A'):
-            ctrl.consume_button('A')
+        if ctrl.is_button_just_pressed("A"):
+            ctrl.consume_button("A")
             if current_time - self._last_click_time > self._click_debounce_ms:
                 self._last_click_time = current_time
                 self._activate_button()
-        
+
         # B to go back
-        if ctrl.is_button_just_pressed('B'):
-            ctrl.consume_button('B')
+        if ctrl.is_button_just_pressed("B"):
+            ctrl.consume_button("B")
             if self.is_building:
                 self._cancel_build()
             else:
                 self._close()
-    
+
     def _activate_button(self):
         """Activate the selected button"""
         if self.selected_button == 0:
@@ -342,55 +366,62 @@ class DBBuilderScreen:
             if self.is_building:
                 self._cancel_build()
             self._close()
-    
+
     def _close(self):
         """Close this screen"""
         self.visible = False
         if self.close_callback:
             self.close_callback()
-    
+
     def draw(self, surface):
         """Draw the DB builder screen"""
         # Background
         surface.fill(ui_colors.COLOR_BG)
-        
+
         # Header
         header_rect = pygame.Rect(0, 0, self.width, 40)
         pygame.draw.rect(surface, ui_colors.COLOR_HEADER, header_rect)
-        
+
         title = self.font_header.render("Database Builder", True, ui_colors.COLOR_TEXT)
         title_rect = title.get_rect(midleft=(15, 20))
         surface.blit(title, title_rect)
-        
+
         # Building indicator in header (right side)
         if self.is_building:
             dots = "." * ((pygame.time.get_ticks() // 500) % 4)
-            status = self.font_button.render(f"Working{dots}", True, ui_colors.COLOR_HIGHLIGHT)
+            status = self.font_button.render(
+                f"Working{dots}", True, ui_colors.COLOR_HIGHLIGHT
+            )
             status_rect = status.get_rect(midright=(self.width - 15, 20))
             surface.blit(status, status_rect)
-        
+
         # Get button rects for layout
         button_rects = self._get_button_rects()
         button_area_left = button_rects[0].left - 10
-        
+
         # Terminal area - left side, leaving room for buttons on right
         terminal_rect = pygame.Rect(10, 50, button_area_left - 20, self.height - 60)
         pygame.draw.rect(surface, (20, 20, 30), terminal_rect)
         pygame.draw.rect(surface, ui_colors.COLOR_BORDER, terminal_rect, 2)
-        
+
         # Draw terminal lines
         visible_lines = self._get_visible_line_count()
         y = terminal_rect.top + 5
         line_height = 14
-        
+
         start_idx = self.scroll_offset
         end_idx = min(start_idx + visible_lines, len(self.terminal_lines))
-        
+
         for i in range(start_idx, end_idx):
             line = self.terminal_lines[i]
-            
+
             # Color code different line types
-            if line.startswith("ERROR") or "FAILED" in line or "Error" in line or "Traceback" in line:
+            if (
+                line.startswith("ERROR")
+                or "FAILED" in line
+                or "Error" in line
+                or "Traceback" in line
+            ):
                 color = ui_colors.COLOR_ERROR
             elif line.startswith("[") and "]" in line:
                 # Progress lines like [001] Bulbasaur
@@ -406,29 +437,41 @@ class DBBuilderScreen:
                 color = (255, 200, 100)  # Yellow/orange for warnings
             else:
                 color = ui_colors.COLOR_TEXT
-            
+
             text_surf = self.font_terminal.render(line, True, color)
             surface.blit(text_surf, (terminal_rect.left + 8, y))
             y += line_height
-        
+
         # Scroll indicator
         if len(self.terminal_lines) > visible_lines:
             # Draw scroll bar
             scrollbar_height = terminal_rect.height - 10
-            thumb_height = max(20, scrollbar_height * visible_lines // len(self.terminal_lines))
+            thumb_height = max(
+                20, scrollbar_height * visible_lines // len(self.terminal_lines)
+            )
             max_scroll = len(self.terminal_lines) - visible_lines
             thumb_y = terminal_rect.top + 5
             if max_scroll > 0:
-                thumb_y += int((scrollbar_height - thumb_height) * self.scroll_offset / max_scroll)
-            
+                thumb_y += int(
+                    (scrollbar_height - thumb_height) * self.scroll_offset / max_scroll
+                )
+
             scrollbar_x = terminal_rect.right - 12
-            pygame.draw.rect(surface, (40, 40, 50), (scrollbar_x, terminal_rect.top + 5, 8, scrollbar_height))
-            pygame.draw.rect(surface, ui_colors.COLOR_HIGHLIGHT, (scrollbar_x, thumb_y, 8, thumb_height))
-        
+            pygame.draw.rect(
+                surface,
+                (40, 40, 50),
+                (scrollbar_x, terminal_rect.top + 5, 8, scrollbar_height),
+            )
+            pygame.draw.rect(
+                surface,
+                ui_colors.COLOR_HIGHLIGHT,
+                (scrollbar_x, thumb_y, 8, thumb_height),
+            )
+
         # Draw buttons (stacked vertically on right)
         for i, btn_text in enumerate(self.buttons):
             btn_rect = button_rects[i]
-            
+
             # Highlight selected button
             if i == self.selected_button:
                 pygame.draw.rect(surface, ui_colors.COLOR_BUTTON_HOVER, btn_rect)
@@ -436,16 +479,18 @@ class DBBuilderScreen:
             else:
                 pygame.draw.rect(surface, ui_colors.COLOR_BUTTON, btn_rect)
                 pygame.draw.rect(surface, ui_colors.COLOR_BORDER, btn_rect, 2)
-            
+
             # Button text - show Cancel if building
             display_text = btn_text
             if self.is_building and i < 2:  # First two buttons become Cancel
                 display_text = "Cancel"
-            
-            text_surf = self.font_button.render(display_text, True, ui_colors.COLOR_TEXT)
+
+            text_surf = self.font_button.render(
+                display_text, True, ui_colors.COLOR_TEXT
+            )
             text_rect = text_surf.get_rect(center=btn_rect.center)
             surface.blit(text_surf, text_rect)
-        
+
         # Hint text at bottom
         hint_y = self.height - 18
         hint_text = "A: Select  B: Back  L/R: Scroll"
@@ -457,19 +502,19 @@ class DBBuilderScreen:
 # Wrapper class for compatibility with modal system
 class DBBuilder:
     """Modal wrapper for DBBuilderScreen"""
-    
+
     def __init__(self, width, height, close_callback=None):
         self.screen = DBBuilderScreen(width, height, close_callback)
         self.visible = True
-    
+
     def update(self, events):
         self.screen.handle_events(events)
         self.visible = self.screen.visible
         return self.visible
-    
+
     def handle_controller(self, ctrl):
         self.screen.handle_controller(ctrl)
-    
+
     def draw(self, surface):
         self.screen.draw(surface)
 

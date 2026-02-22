@@ -260,62 +260,62 @@ ALL_LOCATIONS.update(EMERALD_LOCATIONS)
 ALL_LOCATIONS.update(SPECIAL_LOCATIONS)
 
 
-def get_location_name(location_id, game_type='RSE'):
+def get_location_name(location_id, game_type="RSE"):
     """
     Get location name from ID.
-    
+
     Args:
         location_id: Location ID from save data (0-255)
         game_type: 'RSE', 'FRLG', or 'Emerald'
-        
+
     Returns:
         str: Location name
     """
     # Handle special cases first
     if location_id in SPECIAL_LOCATIONS:
         return SPECIAL_LOCATIONS[location_id]
-    
+
     # Handle Colosseum/XD range (213-252) - these Pokemon show as "Distant land"
     if location_id in COLO_XD_RANGE:
         return "Distant Land"
-    
+
     # RSE range (0-87)
     if location_id <= 87:
         if location_id in RSE_LOCATIONS:
             return RSE_LOCATIONS[location_id]
-    
+
     # FRLG range (88-196)
     elif 88 <= location_id <= 196:
         if location_id in FRLG_LOCATIONS:
             return FRLG_LOCATIONS[location_id]
-    
+
     # Emerald exclusive range (197-212)
     elif 197 <= location_id <= 212:
         if location_id in EMERALD_LOCATIONS:
             return EMERALD_LOCATIONS[location_id]
-    
+
     # Try combined lookup as fallback
     if location_id in ALL_LOCATIONS:
         return ALL_LOCATIONS[location_id]
-    
+
     # Unknown location - shouldn't happen with valid Pokemon
     return f"Location {location_id}"
 
 
-def get_location_name_for_display(location_id, game_type='RSE'):
+def get_location_name_for_display(location_id, game_type="RSE"):
     """
     Get a nicely formatted location name for display.
     Handles edge cases and provides cleaner output.
-    
+
     Args:
         location_id: Location ID from save data
         game_type: 'RSE', 'FRLG', or 'Emerald'
-        
+
     Returns:
         str: Formatted location name
     """
     name = get_location_name(location_id, game_type)
-    
+
     # Clean up some display names
     if name == "Fateful Encounter":
         return "Fateful Encounter"
@@ -323,7 +323,7 @@ def get_location_name_for_display(location_id, game_type='RSE'):
         return "Trade"
     if "(Pokemon Center)" in name:
         return name.replace(" (Pokemon Center)", "")
-    
+
     return name
 
 
@@ -334,11 +334,11 @@ def get_rse_location(old_index):
     Convert old RSE location index to name.
     The old database had offset issues - this provides compatibility.
     """
-    return get_location_name(old_index, 'RSE')
+    return get_location_name(old_index, "RSE")
 
 
 def get_frlg_location(old_index):
     """
     Convert old FRLG location index to name.
     """
-    return get_location_name(old_index, 'FRLG')
+    return get_location_name(old_index, "FRLG")

@@ -16,7 +16,6 @@ Profiles are matched in order:
 import json
 import os
 
-
 # ============================================================================
 # KNOWN CONTROLLER PROFILES
 # ============================================================================
@@ -53,7 +52,8 @@ PROFILES = [
         "id": "powkiddy_x55",
         "description": "Powkiddy X55",
         "name_patterns": [
-            "powkiddy x55", "x55",
+            "powkiddy x55",
+            "x55",
             "deeplay-keys",  # Some X55 units report this
         ],
         "mapping": {
@@ -72,7 +72,9 @@ PROFILES = [
         "id": "powkiddy_generic",
         "description": "Powkiddy Controller",
         "name_patterns": [
-            "powkiddy", "rk2023", "rgb30",
+            "powkiddy",
+            "rk2023",
+            "rgb30",
         ],
         "mapping": {
             "A": [0],
@@ -90,8 +92,15 @@ PROFILES = [
         "id": "anbernic",
         "description": "Anbernic Handheld",
         "name_patterns": [
-            "anbernic", "rg35xx", "rg353", "rg505", "rg556", "rg28xx",
-            "rg351", "rg552", "rg503",
+            "anbernic",
+            "rg35xx",
+            "rg353",
+            "rg505",
+            "rg556",
+            "rg28xx",
+            "rg351",
+            "rg552",
+            "rg503",
             "gameforce",
         ],
         "mapping": {
@@ -128,7 +137,8 @@ PROFILES = [
         "id": "miyoo",
         "description": "Miyoo / Trimui",
         "name_patterns": [
-            "miyoo", "trimui",
+            "miyoo",
+            "trimui",
         ],
         "mapping": {
             "A": [0],
@@ -151,7 +161,7 @@ PROFILES = [
         "description": "USB Retro Pad (DragonRise)",
         "guids": [
             "0300f020790000000600000000000000",  # Windows
-            "030000007900000006000000",          # Linux (shorter GUID format)
+            "030000007900000006000000",  # Linux (shorter GUID format)
         ],
         "name_patterns": [
             "generic usb joystick",
@@ -176,7 +186,7 @@ PROFILES = [
         "description": "USB Gamepad (081F)",
         "guids": [
             "03004d2a1f08000001e4000000000000",  # Windows
-            "0300000001f000000100e400",            # Linux (shorter)
+            "0300000001f000000100e400",  # Linux (shorter)
         ],
         "name_patterns": [
             "usb gamepad",
@@ -201,7 +211,7 @@ PROFILES = [
         "description": "USB Gamepad (DragonRise 0011)",
         "guids": [
             "03006ce8790000001100000000000000",  # Windows
-            "030000007900000011000000",           # Linux (shorter)
+            "030000007900000011000000",  # Linux (shorter)
         ],
         "name_patterns": [],  # Too generic — rely on GUID match only
         "mapping": {
@@ -223,8 +233,14 @@ PROFILES = [
         "id": "generic_gamepad",
         "description": "Generic Gamepad",
         "name_patterns": [
-            "gamepad", "joystick", "game controller", "usb gamepad",
-            "generic", "twin usb", "controller (", "hid gamepad",
+            "gamepad",
+            "joystick",
+            "game controller",
+            "usb gamepad",
+            "generic",
+            "twin usb",
+            "controller (",
+            "hid gamepad",
         ],
         "mapping": {
             "A": [0],
@@ -272,28 +288,30 @@ _gcdb_loaded = False
 def _get_current_platform():
     """Get the current platform string matching gamecontrollerdb format."""
     import platform as _plat
+
     system = _plat.system().lower()
-    if system == 'windows':
-        return 'Windows'
-    elif system == 'darwin':
-        return 'Mac OS X'
+    if system == "windows":
+        return "Windows"
+    elif system == "darwin":
+        return "Mac OS X"
     else:
-        return 'Linux'
+        return "Linux"
 
 
 def _find_gcdb_path():
     """Find gamecontrollerdb.txt in likely locations."""
     candidates = []
-    
+
     try:
         import config as cfg
-        if hasattr(cfg, 'EXT_DIR'):
+
+        if hasattr(cfg, "EXT_DIR"):
             candidates.append(os.path.join(cfg.EXT_DIR, "gamecontrollerdb.txt"))
     except ImportError:
         pass
-    
+
     candidates.append(os.path.abspath("gamecontrollerdb.txt"))
-    
+
     for path in candidates:
         if os.path.exists(path):
             return path
@@ -302,42 +320,42 @@ def _find_gcdb_path():
 
 def _parse_sdl_mapping_value(value_str):
     """Parse a single SDL mapping value like 'b0', 'h0.1', 'a2', '-a1', '+a0'.
-    
+
     Also handles the '~' inversion suffix (e.g. 'a3~' = inverted axis 3).
-    
+
     Returns:
         tuple: (type, data) where type is 'button', 'hat', 'axis_dir',
                or 'axis_full'. None if unparseable.
     """
-    v = value_str.strip().rstrip('~')  # Strip inversion marker
-    
+    v = value_str.strip().rstrip("~")  # Strip inversion marker
+
     try:
-        if v.startswith('b'):
-            return ('button', int(v[1:]))
-        
-        elif v.startswith('h'):
-            parts = v[1:].split('.')
+        if v.startswith("b"):
+            return ("button", int(v[1:]))
+
+        elif v.startswith("h"):
+            parts = v[1:].split(".")
             hat_idx = int(parts[0])
             hat_val = int(parts[1])
-            return ('hat', (hat_idx, hat_val))
-        
-        elif v.startswith('-a') or v.startswith('+a'):
-            sign = -1 if v[0] == '-' else 1
+            return ("hat", (hat_idx, hat_val))
+
+        elif v.startswith("-a") or v.startswith("+a"):
+            sign = -1 if v[0] == "-" else 1
             axis_idx = int(v[2:])
-            return ('axis_dir', (axis_idx, sign))
-        
-        elif v.startswith('a'):
+            return ("axis_dir", (axis_idx, sign))
+
+        elif v.startswith("a"):
             axis_idx = int(v[1:])
-            return ('axis_full', axis_idx)
+            return ("axis_full", axis_idx)
     except (ValueError, IndexError):
         pass
-    
+
     return None
 
 
 def _convert_sdl_mapping(mapping_str):
     """Convert an SDL GameControllerDB mapping string to Sinew format.
-    
+
     Input: 'a:b0,b:b1,back:b6,dpup:h0.1,...,platform:Windows,'
     Output: Sinew mapping dict with A, B, L, R, SELECT, START, and dpad config
     """
@@ -345,165 +363,167 @@ def _convert_sdl_mapping(mapping_str):
     dpad_buttons = {}
     dpad_axes = set()
     has_dpad = False
-    
+
     # SDL name -> Sinew name mapping
     # SDL uses SNES-style labels: a=bottom, b=right, x=left, y=top
     # For GBA: A=confirm (bottom face), B=back (right face)
     sdl_to_sinew = {
-        'a': 'A',           # Bottom face button -> GBA A (confirm)
-        'b': 'B',           # Right face button -> GBA B (back)
-        'x': 'X',           # Left face button
-        'y': 'Y',           # Top face button
-        'leftshoulder': 'L',
-        'rightshoulder': 'R',
-        'back': 'SELECT',
-        'start': 'START',
+        "a": "A",  # Bottom face button -> GBA A (confirm)
+        "b": "B",  # Right face button -> GBA B (back)
+        "x": "X",  # Left face button
+        "y": "Y",  # Top face button
+        "leftshoulder": "L",
+        "rightshoulder": "R",
+        "back": "SELECT",
+        "start": "START",
     }
-    
+
     # Hat value -> direction mapping (SDL standard)
     # h0.1=up, h0.2=right, h0.4=down, h0.8=left
     hat_to_direction = {
-        1: 'up',
-        2: 'right',
-        4: 'down',
-        8: 'left',
+        1: "up",
+        2: "right",
+        4: "down",
+        8: "left",
     }
-    
+
     # D-pad SDL names
     dpad_sdl_names = {
-        'dpup': 'up',
-        'dpdown': 'down',
-        'dpleft': 'left',
-        'dpright': 'right',
+        "dpup": "up",
+        "dpdown": "down",
+        "dpleft": "left",
+        "dpright": "right",
     }
-    
-    entries = mapping_str.split(',')
+
+    entries = mapping_str.split(",")
     for entry in entries:
         entry = entry.strip()
-        if not entry or ':' not in entry:
+        if not entry or ":" not in entry:
             continue
-        
-        key, value = entry.split(':', 1)
+
+        key, value = entry.split(":", 1)
         key = key.strip()
         value = value.strip()
-        
-        if key == 'platform':
+
+        if key == "platform":
             continue
-        
+
         parsed = _parse_sdl_mapping_value(value)
         if parsed is None:
             continue
-        
+
         ptype, pdata = parsed
-        
+
         # Handle face/shoulder buttons
         if key in sdl_to_sinew:
             sinew_name = sdl_to_sinew[key]
-            if ptype == 'button':
+            if ptype == "button":
                 result[sinew_name] = [pdata]
-        
+
         # Handle d-pad
         elif key in dpad_sdl_names:
             has_dpad = True
             direction = dpad_sdl_names[key]
-            
-            if ptype == 'hat':
+
+            if ptype == "hat":
                 # Hat-based d-pad — this is the most common.
                 # We don't need to store anything special; controller.py's
                 # default hat_map handles standard hat values.
                 pass
-            
-            elif ptype == 'button':
+
+            elif ptype == "button":
                 # Button-based d-pad
                 dpad_buttons[direction] = [pdata]
-            
-            elif ptype == 'axis_dir':
+
+            elif ptype == "axis_dir":
                 # Axis-based d-pad (e.g. dpup:-a1)
                 axis_idx, sign = pdata
                 # Add the axis pair
-                if direction in ('left', 'right'):
+                if direction in ("left", "right"):
                     pair_y = axis_idx + 1 if axis_idx % 2 == 0 else axis_idx
                     dpad_axes.add((axis_idx, pair_y))
                 else:
                     pair_x = axis_idx - 1 if axis_idx % 2 == 1 else axis_idx
                     dpad_axes.add((pair_x, axis_idx))
-    
+
     # Add d-pad config to result
     if dpad_buttons:
-        result['_dpad_buttons'] = dpad_buttons
+        result["_dpad_buttons"] = dpad_buttons
     if dpad_axes:
-        result['_dpad_axes'] = list(dpad_axes)
-    
+        result["_dpad_axes"] = list(dpad_axes)
+
     return result
 
 
 def _load_gamecontrollerdb():
     """Load and parse gamecontrollerdb.txt, caching the results.
-    
+
     Returns:
         dict: Maps GUID string -> {'name': str, 'mapping': dict}
               Only entries for the current platform are included.
     """
     global _gcdb_cache, _gcdb_loaded
-    
+
     if _gcdb_loaded:
         return _gcdb_cache
-    
+
     _gcdb_loaded = True
     _gcdb_cache = {}
-    
+
     path = _find_gcdb_path()
     if not path:
         return _gcdb_cache
-    
+
     current_platform = _get_current_platform()
     count = 0
-    
+
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
-                
+
                 # Check platform filter
-                if f'platform:{current_platform},' not in line:
+                if f"platform:{current_platform}," not in line:
                     continue
-                
+
                 # Parse: GUID,Name,mappings...,platform:XXX,
-                parts = line.split(',', 2)
+                parts = line.split(",", 2)
                 if len(parts) < 3:
                     continue
-                
+
                 guid = parts[0].strip()
                 name = parts[1].strip()
                 mapping_str = parts[2]
-                
+
                 if not guid or not name:
                     continue
-                
+
                 mapping = _convert_sdl_mapping(mapping_str)
                 if mapping:
                     _gcdb_cache[guid] = {
-                        'name': name,
-                        'mapping': mapping,
+                        "name": name,
+                        "mapping": mapping,
                     }
                     count += 1
-        
+
         if count > 0:
-            print(f"[ControllerProfiles] Loaded {count} mappings from {os.path.basename(path)} ({current_platform})")
+            print(
+                f"[ControllerProfiles] Loaded {count} mappings from {os.path.basename(path)} ({current_platform})"
+            )
     except Exception as e:
         print(f"[ControllerProfiles] Error loading gamecontrollerdb.txt: {e}")
-    
+
     return _gcdb_cache
 
 
 def lookup_gamecontrollerdb(guid):
     """Look up a controller GUID in the GameControllerDB.
-    
+
     Args:
         guid: SDL GUID string
-        
+
     Returns:
         dict with 'name', 'mapping' if found, None otherwise
     """
@@ -515,17 +535,18 @@ def lookup_gamecontrollerdb(guid):
 # PROFILE MATCHING
 # ============================================================================
 
+
 def identify_controller(name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
     """
     Identify a controller and return the best matching profile.
-    
+
     Args:
         name: Controller name string from pygame (joy.get_name())
         guid: Optional SDL GUID string (joy.get_guid() in pygame 2.x)
         num_buttons: Number of buttons reported
         num_axes: Number of axes reported
         num_hats: Number of hats reported
-    
+
     Returns:
         dict with keys:
             "id": profile id string
@@ -534,7 +555,7 @@ def identify_controller(name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
             "match_type": "guid", "name", "heuristic", or "default"
     """
     name_lower = (name or "").lower().strip()
-    
+
     # Pass 1: Try GUID match (most precise)
     if guid:
         for profile in PROFILES:
@@ -545,7 +566,7 @@ def identify_controller(name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
                     "mapping": dict(profile["mapping"]),
                     "match_type": "guid",
                 }
-    
+
     # Pass 2: Try name substring match
     # We iterate in order so more specific patterns (e.g. "dualshock 4")
     # are checked before generic ones (e.g. "wireless controller").
@@ -559,7 +580,7 @@ def identify_controller(name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
                         "mapping": dict(profile["mapping"]),
                         "match_type": "name",
                     }
-    
+
     # Pass 2.5: Try GameControllerDB (community database with ~2000+ entries)
     if guid:
         gcdb_result = lookup_gamecontrollerdb(guid)
@@ -570,7 +591,7 @@ def identify_controller(name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
                 "mapping": dict(gcdb_result["mapping"]),
                 "match_type": "gcdb",
             }
-    
+
     # Pass 3: Heuristic based on button/axis count
     # PS4/PS5 controllers typically report 13+ buttons
     # Most Xbox controllers report 11 buttons
@@ -583,7 +604,7 @@ def identify_controller(name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
             "mapping": dict(DEFAULT_MAPPING),
             "match_type": "heuristic",
         }
-    
+
     if num_buttons >= 8:
         return {
             "id": "heuristic_standard",
@@ -591,7 +612,7 @@ def identify_controller(name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
             "mapping": dict(DEFAULT_MAPPING),
             "match_type": "heuristic",
         }
-    
+
     # Pass 4: Default fallback
     return {
         "id": "default",
@@ -629,13 +650,15 @@ def get_profile_by_id(profile_id):
 # }
 # ============================================================================
 
+
 def _get_settings_path():
     """Get the path to sinew_settings.json"""
     try:
         import config as cfg
-        if hasattr(cfg, 'SETTINGS_FILE'):
+
+        if hasattr(cfg, "SETTINGS_FILE"):
             return cfg.SETTINGS_FILE
-        elif hasattr(cfg, 'BASE_DIR'):
+        elif hasattr(cfg, "BASE_DIR"):
             return os.path.join(cfg.BASE_DIR, "sinew_settings.json")
     except ImportError:
         pass
@@ -645,22 +668,22 @@ def _get_settings_path():
 def load_saved_profile(controller_name, guid=None):
     """
     Load a saved controller profile from settings.
-    
+
     Args:
         controller_name: The controller's reported name
         guid: Optional SDL GUID
-    
+
     Returns:
         dict with mapping if found, None otherwise
     """
     config_file = _get_settings_path()
     try:
         if os.path.exists(config_file):
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 data = json.load(f)
-            
+
             profiles = data.get("controller_profiles", {})
-            
+
             # Try exact name match first
             if controller_name in profiles:
                 saved = profiles[controller_name]
@@ -670,7 +693,7 @@ def load_saved_profile(controller_name, guid=None):
                     "mapping": saved.get("mapping", {}),
                     "match_type": "saved",
                 }
-            
+
             # Try GUID match
             if guid:
                 for name, saved in profiles.items():
@@ -683,14 +706,14 @@ def load_saved_profile(controller_name, guid=None):
                         }
     except Exception as e:
         print(f"[ControllerProfiles] Error loading saved profile: {e}")
-    
+
     return None
 
 
 def save_controller_profile(controller_name, mapping, profile_id="custom", guid=None):
     """
     Save a controller profile to settings.
-    
+
     Args:
         controller_name: The controller's reported name
         mapping: Button mapping dict
@@ -701,28 +724,30 @@ def save_controller_profile(controller_name, mapping, profile_id="custom", guid=
     try:
         data = {}
         if os.path.exists(config_file):
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 data = json.load(f)
-        
+
         if "controller_profiles" not in data:
             data["controller_profiles"] = {}
-        
+
         profile_data = {
             "profile_id": profile_id,
             "mapping": mapping,
         }
         if guid:
             profile_data["guid"] = guid
-        
+
         data["controller_profiles"][controller_name] = profile_data
-        
+
         # Also write to legacy "controller_mapping" for backward compatibility
         data["controller_mapping"] = mapping
-        
-        with open(config_file, 'w') as f:
+
+        with open(config_file, "w") as f:
             json.dump(data, f, indent=2)
-        
-        print(f"[ControllerProfiles] Saved profile for '{controller_name}' (base: {profile_id})")
+
+        print(
+            f"[ControllerProfiles] Saved profile for '{controller_name}' (base: {profile_id})"
+        )
         return True
     except Exception as e:
         print(f"[ControllerProfiles] Error saving profile: {e}")
@@ -732,20 +757,20 @@ def save_controller_profile(controller_name, mapping, profile_id="custom", guid=
 def resolve_mapping(controller_name, guid=None, num_buttons=0, num_axes=0, num_hats=0):
     """
     The main entry point: figure out what mapping to use for a controller.
-    
+
     Priority:
       1. User-saved profile for this exact controller
       2. Known profile from the built-in database
       3. Legacy flat "controller_mapping" from settings
       4. Xbox-style default
-    
+
     Args:
         controller_name: Controller name from pygame
         guid: Optional SDL GUID
         num_buttons: Number of buttons
         num_axes: Number of axes
         num_hats: Number of hats
-    
+
     Returns:
         dict with "id", "description", "mapping", "match_type"
     """
@@ -754,26 +779,32 @@ def resolve_mapping(controller_name, guid=None, num_buttons=0, num_axes=0, num_h
     if saved and saved.get("mapping"):
         print(f"[ControllerProfiles] Using saved profile for '{controller_name}'")
         return saved
-    
+
     # 2. Check built-in database
-    detected = identify_controller(controller_name, guid, num_buttons, num_axes, num_hats)
+    detected = identify_controller(
+        controller_name, guid, num_buttons, num_axes, num_hats
+    )
     if detected["match_type"] in ("guid", "name"):
-        print(f"[ControllerProfiles] Auto-detected as '{detected['description']}' "
-              f"(match: {detected['match_type']})")
+        print(
+            f"[ControllerProfiles] Auto-detected as '{detected['description']}' "
+            f"(match: {detected['match_type']})"
+        )
         return detected
-    
+
     # 3. Check legacy flat mapping in settings
     config_file = _get_settings_path()
     try:
         if os.path.exists(config_file):
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 data = json.load(f)
-            
+
             if "controller_mapping" in data:
                 legacy_map = data["controller_mapping"]
                 # Validate it has at least A and B
                 if "A" in legacy_map and "B" in legacy_map:
-                    print(f"[ControllerProfiles] Using legacy controller_mapping from settings")
+                    print(
+                        f"[ControllerProfiles] Using legacy controller_mapping from settings"
+                    )
                     return {
                         "id": "legacy",
                         "description": "Saved Mapping (legacy)",
@@ -782,9 +813,11 @@ def resolve_mapping(controller_name, guid=None, num_buttons=0, num_axes=0, num_h
                     }
     except Exception:
         pass
-    
+
     # 4. Fall back to detected (heuristic or default)
-    print(f"[ControllerProfiles] Using {detected['match_type']} mapping for '{controller_name}'")
+    print(
+        f"[ControllerProfiles] Using {detected['match_type']} mapping for '{controller_name}'"
+    )
     return detected
 
 

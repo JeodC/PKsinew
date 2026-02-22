@@ -4,13 +4,14 @@ Reusable UI elements for the application
 """
 
 import pygame
+
 import ui_colors
-from config import WINDOW_HEIGHT, WINDOW_WIDTH, FONT_PATH
+from config import FONT_PATH, WINDOW_HEIGHT, WINDOW_WIDTH
 
 
 class Button:
     """Standard button with hover effects and controller selection support"""
-    
+
     def __init__(self, text, rel_rect, callback):
         """
         Args:
@@ -34,7 +35,7 @@ class Button:
         w = int(self.rel_rect[2] * WINDOW_WIDTH)
         h = int(self.rel_rect[3] * WINDOW_HEIGHT)
         self.rect = pygame.Rect(x, y, w, h)
-    
+
     def set_controller_selected(self, selected):
         """Set whether this button is selected by controller"""
         self.controller_selected = selected
@@ -42,7 +43,7 @@ class Button:
     def draw(self, surf, font, controller_selected=None):
         """
         Draw the button on the surface
-        
+
         Args:
             surf: Surface to draw on
             font: Font to use for text
@@ -50,9 +51,13 @@ class Button:
         """
         mouse = pygame.mouse.get_pos()
         self.hover = self.rect.collidepoint(mouse) and self.enabled
-        
+
         # Check if controller selected (either from parameter or internal state)
-        is_controller_selected = controller_selected if controller_selected is not None else self.controller_selected
+        is_controller_selected = (
+            controller_selected
+            if controller_selected is not None
+            else self.controller_selected
+        )
 
         if not self.enabled:
             color = (10, 10, 20)
@@ -73,7 +78,9 @@ class Button:
             border_color = ui_colors.COLOR_BORDER
 
         pygame.draw.rect(surf, color, self.rect)
-        pygame.draw.rect(surf, border_color, self.rect, 2 if not is_controller_selected else 3)
+        pygame.draw.rect(
+            surf, border_color, self.rect, 2 if not is_controller_selected else 3
+        )
         txt_surf = font.render(self.text, True, txt_color)
         txt_rect = txt_surf.get_rect(center=self.rect.center)
         surf.blit(txt_surf, txt_rect)
@@ -87,7 +94,7 @@ class Button:
                 self.callback()
                 return True
         return False
-    
+
     def activate(self):
         """Activate the button (call callback) - useful for controller"""
         if self.enabled:
@@ -98,7 +105,7 @@ class Button:
 
 class TextDisplay:
     """Scrollable text display area with controller support"""
-    
+
     def __init__(self, rel_rect):
         """
         Args:
@@ -120,7 +127,7 @@ class TextDisplay:
 
     def set_text(self, text):
         """Set the text content"""
-        self.lines = text.split('\n')
+        self.lines = text.split("\n")
         self.scroll = 0
 
     def draw(self, surf, font):
@@ -146,18 +153,22 @@ class TextDisplay:
         if event.button == 4:  # Scroll up
             self.scroll = max(0, self.scroll - 20)
         elif event.button == 5:  # Scroll down
-            max_scroll = max(0, len(self.lines) * self.get_line_height() - self.rect.height + 10)
+            max_scroll = max(
+                0, len(self.lines) * self.get_line_height() - self.rect.height + 10
+            )
             self.scroll = min(self.scroll + 20, max_scroll)
-    
+
     def scroll_up(self, amount=20):
         """Scroll up (for controller support)"""
         self.scroll = max(0, self.scroll - amount)
-    
+
     def scroll_down(self, amount=20):
         """Scroll down (for controller support)"""
-        max_scroll = max(0, len(self.lines) * self.get_line_height() - self.rect.height + 10)
+        max_scroll = max(
+            0, len(self.lines) * self.get_line_height() - self.rect.height + 10
+        )
         self.scroll = min(self.scroll + amount, max_scroll)
-    
+
     def get_line_height(self):
         """Get line height"""
         return 16
@@ -165,7 +176,7 @@ class TextDisplay:
 
 class SaveFileButton:
     """Button for selecting a save file with controller support"""
-    
+
     def __init__(self, save_info, y_pos, tiny_font):
         """
         Args:
@@ -182,12 +193,16 @@ class SaveFileButton:
     def draw(self, surf, controller_selected=None):
         """Draw the save file button"""
         mouse = pygame.mouse.get_pos()
-        is_empty = self.save_info['empty']
+        is_empty = self.save_info["empty"]
         self.hover = self.rect.collidepoint(mouse) and not is_empty
-        
+
         # Check if controller selected
-        is_controller_selected = controller_selected if controller_selected is not None else self.controller_selected
-        
+        is_controller_selected = (
+            controller_selected
+            if controller_selected is not None
+            else self.controller_selected
+        )
+
         if is_empty:
             color = (40, 20, 20)
             border = (100, 50, 50)
@@ -200,20 +215,26 @@ class SaveFileButton:
         else:
             color = ui_colors.COLOR_BUTTON
             border = ui_colors.COLOR_BORDER
-        
+
         pygame.draw.rect(surf, color, self.rect)
         pygame.draw.rect(surf, border, self.rect, 2 if is_controller_selected else 1)
-        
-        size_kb = self.save_info['size'] / 1024
+
+        size_kb = self.save_info["size"] / 1024
         txt = f"{self.save_info['name']} ({size_kb:.1f}KB)"
         if is_empty:
             txt += " [EMPTY]"
-        
-        col = ui_colors.COLOR_HOVER_TEXT if (self.hover or is_controller_selected) else ui_colors.COLOR_TEXT
+
+        col = (
+            ui_colors.COLOR_HOVER_TEXT
+            if (self.hover or is_controller_selected)
+            else ui_colors.COLOR_TEXT
+        )
         if is_empty:
             col = (150, 80, 80)
-        
-        surf.blit(self.tiny_font.render(txt, True, col), (self.rect.x + 5, self.rect.y + 3))
+
+        surf.blit(
+            self.tiny_font.render(txt, True, col), (self.rect.x + 5, self.rect.y + 3)
+        )
 
     def handle_event(self, event):
         """Handle mouse events. Returns True if clicked."""
@@ -225,7 +246,7 @@ class SaveFileButton:
 
 class ButtonGroup:
     """Helper class for managing a group of buttons with controller navigation"""
-    
+
     def __init__(self, buttons, columns=1, wrap=True):
         """
         Args:
@@ -237,27 +258,27 @@ class ButtonGroup:
         self.columns = columns
         self.wrap = wrap
         self.selected_index = 0
-        
+
         if buttons:
             self.buttons[0].set_controller_selected(True)
-    
+
     def navigate(self, direction):
         """
         Navigate in a direction
-        
+
         Args:
             direction: 'up', 'down', 'left', 'right'
-            
+
         Returns:
             bool: True if selection changed
         """
         if not self.buttons:
             return False
-        
+
         old_index = self.selected_index
         rows = (len(self.buttons) + self.columns - 1) // self.columns
-        
-        if direction == 'up':
+
+        if direction == "up":
             new_idx = self.selected_index - self.columns
             if new_idx >= 0:
                 self.selected_index = new_idx
@@ -265,50 +286,56 @@ class ButtonGroup:
                 col = self.selected_index % self.columns
                 last_row_start = (rows - 1) * self.columns
                 self.selected_index = min(last_row_start + col, len(self.buttons) - 1)
-        
-        elif direction == 'down':
+
+        elif direction == "down":
             new_idx = self.selected_index + self.columns
             if new_idx < len(self.buttons):
                 self.selected_index = new_idx
             elif self.wrap:
                 col = self.selected_index % self.columns
                 self.selected_index = min(col, len(self.buttons) - 1)
-        
-        elif direction == 'left':
+
+        elif direction == "left":
             if self.selected_index % self.columns > 0:
                 self.selected_index -= 1
             elif self.wrap:
-                row_end = min((self.selected_index // self.columns + 1) * self.columns - 1, len(self.buttons) - 1)
+                row_end = min(
+                    (self.selected_index // self.columns + 1) * self.columns - 1,
+                    len(self.buttons) - 1,
+                )
                 self.selected_index = row_end
-        
-        elif direction == 'right':
-            if self.selected_index % self.columns < self.columns - 1 and self.selected_index + 1 < len(self.buttons):
+
+        elif direction == "right":
+            if (
+                self.selected_index % self.columns < self.columns - 1
+                and self.selected_index + 1 < len(self.buttons)
+            ):
                 self.selected_index += 1
             elif self.wrap:
                 row_start = (self.selected_index // self.columns) * self.columns
                 self.selected_index = row_start
-        
+
         # Update button selection states
         if old_index != self.selected_index:
             self.buttons[old_index].set_controller_selected(False)
             self.buttons[self.selected_index].set_controller_selected(True)
             return True
-        
+
         return False
-    
+
     def get_selected_button(self):
         """Get the currently selected button"""
         if self.buttons and 0 <= self.selected_index < len(self.buttons):
             return self.buttons[self.selected_index]
         return None
-    
+
     def activate_selected(self):
         """Activate the currently selected button"""
         button = self.get_selected_button()
         if button:
             return button.activate()
         return False
-    
+
     def set_selected(self, index):
         """Set the selected button index"""
         if 0 <= index < len(self.buttons):
@@ -316,7 +343,7 @@ class ButtonGroup:
                 self.buttons[self.selected_index].set_controller_selected(False)
             self.selected_index = index
             self.buttons[self.selected_index].set_controller_selected(True)
-    
+
     def draw_all(self, surf, font):
         """Draw all buttons in the group"""
         for button in self.buttons:
@@ -326,7 +353,7 @@ class ButtonGroup:
 def draw_wrapped_text(surf, text, x, y, max_width, font_obj, color, line_height=None):
     """
     Draw word-wrapped text on a surface
-    
+
     Args:
         surf: Surface to draw on
         text: Text to draw
@@ -335,17 +362,17 @@ def draw_wrapped_text(surf, text, x, y, max_width, font_obj, color, line_height=
         font_obj: Pygame font object
         color: Text color
         line_height: Optional custom line height
-        
+
     Returns:
         y position after last line
     """
     if line_height is None:
         line_height = font_obj.get_linesize()
-    words = text.split(' ')
-    line = ''
+    words = text.split(" ")
+    line = ""
     cur_y = y
     for word in words:
-        test = (line + ' ' + word).strip()
+        test = (line + " " + word).strip()
         w = font_obj.size(test)[0]
         if w <= max_width:
             line = test
@@ -363,11 +390,11 @@ def draw_wrapped_text(surf, text, x, y, max_width, font_obj, color, line_height=
 def scale_surface_preserve_aspect(surface, max_w, max_h):
     """
     Scale a surface to fit within max dimensions while preserving aspect ratio
-    
+
     Args:
         surface: Pygame surface to scale
         max_w, max_h: Maximum width and height
-        
+
     Returns:
         Scaled surface or None
     """
@@ -385,7 +412,7 @@ def scale_surface_preserve_aspect(surface, max_w, max_h):
 def draw_controller_hint(surf, text, x, y, font=None):
     """
     Draw a controller hint text
-    
+
     Args:
         surf: Surface to draw on
         text: Hint text (e.g., "A: Select  B: Back")
@@ -397,6 +424,6 @@ def draw_controller_hint(surf, text, x, y, font=None):
             font = pygame.font.Font(FONT_PATH, 8)
         except:
             font = pygame.font.SysFont(None, 12)
-    
+
     hint_surf = font.render(text, True, (120, 120, 120))
     surf.blit(hint_surf, (x, y))

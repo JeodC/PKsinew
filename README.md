@@ -3,6 +3,7 @@
 **PKsinew** is a companion app/frontend launcher for **Gen 3 Pokémon games** that lets you **track your progress across all 5 GBA games**.
 
 It allows you to:
+
 - Access Sinew **default start+select**
 - Gain **achievements and rewards**
 - Handle **mass storage & transferring Pokémon between games**
@@ -24,12 +25,12 @@ PKsinew supports **Windows, macOS, and Linux**, and works best with a **controll
    - [Add ROMs](#add-roms)
    - [First-time In-App Setup](#first-time-in-app-setup)
    - [Tips & Notes](#tips--notes)
-3. [How to Build ](#building)
+2. [How to Build ](#building)
    - [Install Python 3](#install-python-3)
    - [Install Dependencies](#install-dependencies)
    - [Build Executable](#build-executable)
    - [Dev Environment](#dev-environment)
-4. [Troubleshooting](#troubleshooting)
+3. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -40,13 +41,14 @@ If you downloaded a release, you do **not** need Python or any dependencies. Jus
 ### Add ROMs
 
 1. Place your legally obtained ROMs in the `roms` folder.
+
 - Supported formats: `.gba`, `.zip`, `.7z`
 - Supported games:
-   - Pokémon Ruby
-   - Pokémon Sapphire
-   - Pokémon Emerald
-   - Pokémon FireRed
-   - Pokémon LeafGreen
+  - Pokémon Ruby
+  - Pokémon Sapphire
+  - Pokémon Emerald
+  - Pokémon FireRed
+  - Pokémon LeafGreen
 
 ---
 
@@ -72,11 +74,11 @@ If you want to build PKsinew yourself, follow these steps:
 
 ### Install Python 3
 
-| Platform | Instructions |
-|----------|--------------|
+| Platform    | Instructions                                                      |
+| ----------- | ----------------------------------------------------------------- |
 | **Windows** | [Download Python 3.12](https://www.python.org/downloads/windows/) |
-| **macOS** | [Download Python 3](https://www.python.org/downloads/macos/) |
-| **Linux** | See below |
+| **macOS**   | [Download Python 3](https://www.python.org/downloads/macos/)      |
+| **Linux**   | See below                                                         |
 
 #### Windows — Important Installation Steps
 
@@ -121,16 +123,19 @@ All commands from this point on need to be run from **inside the PKsinew folder*
 With your terminal open in the PKsinew folder, run:
 
 **Windows (PowerShell):**
+
 ```powershell
 pip install -r requirements.txt
 ```
 
 **macOS / Linux:**
+
 ```bash
 pip3 install -r requirements.txt
 ```
 
 If you get a permissions error on macOS/Linux, try:
+
 ```bash
 pip3 install --user -r requirements.txt
 ```
@@ -152,13 +157,17 @@ You can of course run PKsinew from the unpacked `src` folder (e.g. testing chang
 ## Troubleshooting
 
 **"python is not recognized" error on Windows**
+
 > You missed the "Add Python to PATH" checkbox during installation. Re-run the Python installer, choose "Modify", and enable the PATH option. Or uninstall and reinstall with the checkbox checked.
 
 **"pip is not recognized" on Windows**
+
 > Same cause as above — Python isn't on your PATH. Re-run the installer with the PATH option enabled.
 
 **Black screen / app won't start**
+
 > Make sure all dependencies are installed. See above for running `pip install -r requirements.txt`.
 
 **Game not detected**
+
 > Make sure your ROM filename contains the game name (e.g. `Pokemon Ruby.gba`). Check the `roms/` folder and ensure the file extension is supported.

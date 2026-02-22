@@ -3,18 +3,19 @@ GIF Sprite Handler for Pokemon Showdown Sprites
 Handles loading and animating GIF sprites in Pygame
 """
 
+import os
+
 import pygame
 from PIL import Image, ImageSequence
-import os
 
 
 class GIFSprite:
     """Handles animated GIF sprites"""
-    
+
     def __init__(self, gif_path, target_size=None):
         """
         Load a GIF sprite
-        
+
         Args:
             gif_path: Path to GIF file
             target_size: (width, height) to scale to, or None to keep original
@@ -26,68 +27,70 @@ class GIFSprite:
         self.current_frame = 0
         self.time_accumulator = 0
         self.loaded = False
-        
+
         if os.path.exists(gif_path):
             self._load_gif()
-    
+
     def _load_gif(self):
         """Load GIF frames into pygame surfaces"""
         try:
             pil_img = Image.open(self.gif_path)
-            
+
             for frame in ImageSequence.Iterator(pil_img):
                 # Convert frame to RGBA
                 frame = frame.convert("RGBA")
-                
+
                 # Scale if needed
                 if self.target_size:
                     frame = frame.resize(self.target_size, Image.NEAREST)
-                
+
                 # Convert to pygame surface
                 data = frame.tobytes()
-                surf = pygame.image.fromstring(data, frame.size, frame.mode).convert_alpha()
-                
+                surf = pygame.image.fromstring(
+                    data, frame.size, frame.mode
+                ).convert_alpha()
+
                 self.frames.append(surf)
-                
+
                 # Get frame duration (in milliseconds)
                 duration = frame.info.get("duration", 100)
                 self.durations.append(duration)
-            
+
             self.loaded = len(self.frames) > 0
-            
+
         except Exception as e:
             print(f"Error loading GIF {self.gif_path}: {e}")
             self.loaded = False
-    
+
     def update(self, dt):
         """
         Update animation
-        
+
         Args:
             dt: Delta time in milliseconds
         """
         if not self.loaded or len(self.frames) <= 1:
             return
-        
+
         self.time_accumulator += dt
-        
+
         # Get duration of current frame
         current_duration = self.durations[self.current_frame] if self.durations else 100
-        
+
         if self.time_accumulator >= current_duration:
             self.time_accumulator = 0
             self.current_frame = (self.current_frame + 1) % len(self.frames)
-    
+
     def get_current_frame(self):
         """Get current frame surface"""
         if not self.loaded or not self.frames:
             return None
         return self.frames[self.current_frame]
-    
+
     def draw(self, surf, pos):
         """
         Draw current frame at position
-        
+
         Args:
             surf: Surface to draw on
             pos: (x, y) position or rect
@@ -99,7 +102,7 @@ class GIFSprite:
                 surf.blit(frame, frame_rect.topleft)
             else:
                 surf.blit(frame, pos)
-    
+
     def reset(self):
         """Reset animation to first frame"""
         self.current_frame = 0
@@ -108,44 +111,44 @@ class GIFSprite:
 
 class SpriteCache:
     """Cache for loaded sprites to avoid reloading"""
-    
+
     def __init__(self):
         self.cache = {}  # sprite_key -> GIFSprite or pygame.Surface
-    
+
     def get_gif_sprite(self, path, size=None):
         """
         Get a cached GIF sprite or load it
-        
+
         Args:
             path: Path to GIF file
             size: (width, height) tuple or None
-            
+
         Returns:
             GIFSprite or None
         """
         cache_key = f"{path}_{size}"
-        
+
         if cache_key not in self.cache:
             if os.path.exists(path):
                 self.cache[cache_key] = GIFSprite(path, size)
             else:
                 self.cache[cache_key] = None
-        
+
         return self.cache[cache_key]
-    
+
     def get_png_sprite(self, path, size=None):
         """
         Get a cached PNG sprite or load it
-        
+
         Args:
             path: Path to PNG file
             size: (width, height) tuple or None
-            
+
         Returns:
             pygame.Surface or None
         """
         cache_key = f"{path}_{size}"
-        
+
         if cache_key not in self.cache:
             if os.path.exists(path):
                 try:
@@ -157,9 +160,9 @@ class SpriteCache:
                     self.cache[cache_key] = None
             else:
                 self.cache[cache_key] = None
-        
+
         return self.cache[cache_key]
-    
+
     def clear(self):
         """Clear the cache"""
         self.cache.clear()
@@ -167,6 +170,7 @@ class SpriteCache:
 
 # Global sprite cache instance
 _sprite_cache = SpriteCache()
+
 
 def get_sprite_cache():
     """Get the global sprite cache"""

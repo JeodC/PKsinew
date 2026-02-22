@@ -3,10 +3,10 @@ Sinew Theme Manager
 Handles loading, applying, and saving theme preferences
 """
 
-import os
 import json
+import os
 
-from config import EXT_DIR, THEMES_DIR, FONTS_DIR, FONT_PATH, SAVES_DIR
+from config import EXT_DIR, FONT_PATH, FONTS_DIR, SAVES_DIR, THEMES_DIR
 
 # Default theme values (Dark theme)
 DEFAULT_THEME = {
@@ -31,83 +31,86 @@ THEMES_DIR = os.path.join(THEMES_DIR)
 # Current theme name
 _current_theme_name = "Dark"
 
+
 def _resolve_theme_paths(theme_data):
     """
     Resolve any relative paths in theme data to absolute paths.
-    
+
     Args:
         theme_data: Dictionary of theme settings
-        
+
     Returns:
         dict: Theme data with paths resolved to absolute
     """
     if theme_data is None:
         return None
-    
+
     result = theme_data.copy()
-    
+
     # Resolve FONT_PATH if present and relative
-    if 'FONT_PATH' in result:
-        result['FONT_PATH'] = os.path.join(FONTS_DIR, os.path.basename(result['FONT_PATH']))
-    
+    if "FONT_PATH" in result:
+        result["FONT_PATH"] = os.path.join(
+            FONTS_DIR, os.path.basename(result["FONT_PATH"])
+        )
+
     return result
 
 
 def get_available_themes():
     """
     Get list of available theme names from the themes directory.
-    
+
     Returns:
         list: Theme names (without .json extension)
     """
     themes = ["Dark"]  # Default is always available
-    
+
     if os.path.exists(THEMES_DIR):
         for filename in os.listdir(THEMES_DIR):
-            if filename.endswith('.json') or filename.endswith('_theme.json'):
+            if filename.endswith(".json") or filename.endswith("_theme.json"):
                 # Extract theme name
-                name = filename.replace('_theme.json', '').replace('.json', '')
+                name = filename.replace("_theme.json", "").replace(".json", "")
                 # Capitalize nicely
-                name = name.replace('_', ' ').title()
+                name = name.replace("_", " ").title()
                 if name not in themes:
                     themes.append(name)
-    
+
     return sorted(themes)
 
 
 def load_theme(theme_name):
     """
     Load a theme from file.
-    
+
     Args:
         theme_name: Name of the theme (e.g., "Candy", "Dark")
-        
+
     Returns:
         dict: Theme color values, or None if not found
     """
     if theme_name.lower() == "dark":
         return _resolve_theme_paths(DEFAULT_THEME.copy())
-    
+
     # Try different filename patterns
-    base_name = theme_name.lower().replace(' ', '_')
+    base_name = theme_name.lower().replace(" ", "_")
     possible_files = [
         os.path.join(THEMES_DIR, f"{base_name}_theme.json"),
         os.path.join(THEMES_DIR, f"{base_name}.json"),
         os.path.join(THEMES_DIR, f"{theme_name}_theme.json"),
         os.path.join(THEMES_DIR, f"{theme_name}.json"),
     ]
-    
+
     for filepath in possible_files:
         if os.path.exists(filepath):
             try:
-                with open(filepath, 'r') as f:
+                with open(filepath, "r") as f:
                     theme_data = json.load(f)
                 print(f"[ThemeManager] Loaded theme from: {filepath}")
                 # Resolve any relative paths in the theme
                 return _resolve_theme_paths(theme_data)
             except Exception as e:
                 print(f"[ThemeManager] Error loading {filepath}: {e}")
-    
+
     print(f"[ThemeManager] Theme not found: {theme_name}")
     return None
 
@@ -115,27 +118,27 @@ def load_theme(theme_name):
 def apply_theme(theme_name):
     """
     Apply a theme by updating ui_colors module variables.
-    
+
     Args:
         theme_name: Name of the theme to apply
-        
+
     Returns:
         bool: True if successful
     """
     global _current_theme_name
-    
+
     theme_data = load_theme(theme_name)
     if theme_data is None:
         return False
-    
+
     try:
         import ui_colors
-        
+
         # Check if font is changing
-        old_font = getattr(ui_colors, 'FONT_PATH', None)
-        new_font = theme_data.get('FONT_PATH', None)
+        old_font = getattr(ui_colors, "FONT_PATH", None)
+        new_font = theme_data.get("FONT_PATH", None)
         font_changed = new_font and old_font != new_font
-        
+
         # Update each setting in ui_colors module
         for key, value in theme_data.items():
             if hasattr(ui_colors, key):
@@ -144,19 +147,20 @@ def apply_theme(theme_name):
                     value = tuple(value)
                 setattr(ui_colors, key, value)
                 print(f"[ThemeManager] Set {key} = {value}")
-        
+
         # Clear font cache if font changed
-        if font_changed and hasattr(ui_colors, 'clear_font_cache'):
+        if font_changed and hasattr(ui_colors, "clear_font_cache"):
             ui_colors.clear_font_cache()
             print(f"[ThemeManager] Cleared font cache for new font: {new_font}")
-        
+
         _current_theme_name = theme_name
         print(f"[ThemeManager] Applied theme: {theme_name}")
         return True
-        
+
     except Exception as e:
         print(f"[ThemeManager] Error applying theme: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -169,10 +173,10 @@ def get_current_theme():
 def get_theme_preview(theme_name):
     """
     Get preview colors for a theme without applying it.
-    
+
     Args:
         theme_name: Name of the theme
-        
+
     Returns:
         dict: Theme colors or None
     """
@@ -182,28 +186,28 @@ def get_theme_preview(theme_name):
 def save_theme_preference(theme_name, settings_path=None):
     """
     Save the theme preference to settings file.
-    
+
     Args:
         theme_name: Name of the theme to save
         settings_path: Path to settings JSON file
     """
     # Use absolute path for settings
     settings_path = os.path.join(SAVES_DIR, "sinew_settings.json")
-    
+
     settings = {}
-    
+
     # Load existing settings if present
     if os.path.exists(settings_path):
         try:
-            with open(settings_path, 'r') as f:
+            with open(settings_path, "r") as f:
                 settings = json.load(f)
         except:
             pass
-    
-    settings['theme'] = theme_name
-    
+
+    settings["theme"] = theme_name
+
     try:
-        with open(settings_path, 'w') as f:
+        with open(settings_path, "w") as f:
             json.dump(settings, f, indent=4)
         print(f"[ThemeManager] Saved theme preference: {theme_name}")
     except Exception as e:
@@ -213,25 +217,25 @@ def save_theme_preference(theme_name, settings_path=None):
 def load_theme_preference(settings_path=None):
     """
     Load and apply the saved theme preference.
-    
+
     Args:
         settings_path: Path to settings JSON file
-        
+
     Returns:
         str: Name of the loaded theme
     """
     # Use absolute path for settings
     settings_path = os.path.join(SAVES_DIR, "sinew_settings.json")
-    
+
     theme_name = "Dark"  # Default
-    
+
     if os.path.exists(settings_path):
         try:
-            with open(settings_path, 'r') as f:
+            with open(settings_path, "r") as f:
                 settings = json.load(f)
-                theme_name = settings.get('theme', 'Dark')
+                theme_name = settings.get("theme", "Dark")
         except:
             pass
-    
+
     apply_theme(theme_name)
     return theme_name
