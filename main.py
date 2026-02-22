@@ -2564,60 +2564,6 @@ class GameScreen:
         return GAME_FULL
     
     def _launch_game(self):
-        """Launch the current game ROM using integrated emulator"""
-        # Sinew doesn't have a ROM to launch
-        if self.is_on_sinew():
-            print("Sinew is a combined view - no game to launch")
-            return
-        
-        # Check if a game is already running
-        if self.emulator and self.emulator.loaded:
-            # Get the name of the currently running game
-            running_game = "Unknown"
-            if self.emulator.rom_path:
-                running_game = os.path.splitext(os.path.basename(self.emulator.rom_path))[0]
-            
-            # Show notification instead of launching
-            self._show_notification(
-                f"Currently playing: {running_game}",
-                self._get_pause_combo_hint_text("return")
-            )
-            return
-        
-        gname = self.game_names[self.current_game]
-        rom_path = self.games[gname].get("rom")
-        sav_path = self.games[gname].get("sav")
-        
-        if not rom_path or not os.path.exists(rom_path):
-            # Check if it's a save-only game to give a better message
-            if self.games[gname].get("availability") == GAME_SAVE_ONLY:
-                self._show_notification(
-                    f"{gname}: No ROM found",
-                    "Place a matching .gba ROM in the roms/ folder"
-                )
-            else:
-                print(f"ROM not found: {rom_path}")
-            return
-        
-        # Try integrated emulator first
-        if EMULATOR_AVAILABLE and MgbaEmulator:
-            # Check if dev mode external emulator override is active
-            import builtins
-            use_external = getattr(builtins, 'SINEW_USE_EXTERNAL_EMULATOR', False)
-            dev_mode = getattr(builtins, 'SINEW_DEV_MODE', False)
-            if dev_mode and use_external:
-                print(f"[Dev] External emulator mode active - routing to external_emulator.py")
-                self._launch_external_emulator(rom_path, sav_path)
-                return
-
-            try:
-                self._launch_integrated_emulator(rom_path, sav_path)
-                return
-            except Exception as e:
-                print(f"Integrated emulator failed: {e}")
-                print("No compatible emulator core found for this platform.")
-    
-    def _launch_game(self):
         """Launch the current game ROM"""
         if self.is_on_sinew():
             print("Sinew is a combined view - no game to launch")
@@ -2656,10 +2602,11 @@ class GameScreen:
         if (dev_mode and use_external
                 and self.external_emu
                 and self.external_emu.active_provider):
-            self._launch_external_emulator(rom_path, sav_path)
-            return
+            if self._launch_external_emulator(rom_path, sav_path):
+                return
+            print("[Dev] External emulator failed — falling back to integrated mGBA")
 
-        # Integrated mGBA path (always the fallback)
+        # Integrated mGBA path (fallback)
         if EMULATOR_AVAILABLE and MgbaEmulator:
             try:
                 self._launch_integrated_emulator(rom_path, sav_path)
@@ -2745,11 +2692,8 @@ class GameScreen:
                     pass
             self._ext_sav_path          = None
             self._sinew_backup_sav_path = None
-            self._show_notification(
-                "[Dev] External emulator failed to launch",
-                "Check console for details"
-            )
-            return
+            print(f"[Dev] External emulator launch failed for {os.path.basename(rom_path)}")
+            return False
 
         # Tell the UI we're "in game" (stops music etc.)
         self.emulator_active = True
@@ -2768,6 +2712,7 @@ class GameScreen:
             "[Dev] External emulator launched",
             f"Using {type(provider).__name__}"
         )
+        return True
 
     def _on_external_emulator_closed(self, sinew_edit_path):
         """
