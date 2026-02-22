@@ -10,18 +10,8 @@ regardless of where the script is executed from.
 import os
 
 # ===== Base Directory Setup =====
-# When frozen by PyInstaller, __file__ points inside the _MEI temp extraction
-# folder. The actual application directory (where the .exe lives and where
-# roms/, saves/, cores/ etc. should be) is sys.executable's parent instead.
-import sys as _sys
-
-if getattr(_sys, 'frozen', False):
-    # Running as a PyInstaller bundle — use the directory of the executable
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(_sys.executable))
-else:
-    # Running as normal Python — anchor to this file's location
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
+# This is the KEY fix - anchor all paths to where config.py is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = SCRIPT_DIR  # These are the same - the project root
 
 # ===== Path Resolution Helper =====
