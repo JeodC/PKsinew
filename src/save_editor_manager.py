@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 from config import MGBA_PATH, PARSER_LOCATIONS, ROM_PATHS, SAVES_DIR
+from item_names import get_item_name
 
 # Import the save parser (with path handling)
 parser_found = False
@@ -21,8 +22,6 @@ if not parser_found:
     raise ImportError("Parser files not found! Check parser directory location.")
 
 from gen3_save_parser import Gen3SaveParser
-
-from item_names import get_item_name
 
 
 class SaveEditorManager:
@@ -82,7 +81,7 @@ class SaveEditorManager:
         info = parser.get_trainer_info()
         party = parser.get_party_data()
 
-        self.save_info_text = f"=== SAVE FILE INFO ===\n"
+        self.save_info_text = "=== SAVE FILE INFO ===\n"
         self.save_info_text += f"File: {filename}\n"
         self.save_info_text += f"File Size: {len(parser.data)} bytes\n\n"
         self.save_info_text += f"Trainer Name: {info.get('name', 'Unknown')}\n"
