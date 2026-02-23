@@ -79,11 +79,13 @@ jobs:
         run: |
           find dist -type f -exec chmod 755 {} \;
 
-      - name: Upload artifact
+      - name: Upload artifacts + changelog
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/
+          name: release-files
+          path: |
+            dist/*
+            dist/changelog.txt
 
   release:
     name: Create GitHub Release
@@ -108,11 +110,7 @@ jobs:
           CHANGELOG=""
           if [ -f release-files/changelog.txt ]; then
             CHANGELOG=$(cat release-files/changelog.txt)
-          elif [ -f dist/changelog.txt ]; then
-            CHANGELOG=$(cat dist/changelog.txt)
-          fi
-
-          if [ -z "$CHANGELOG" ]; then
+          else
             echo "Warning: changelog.txt not found or empty. Release will have no body."
             CHANGELOG="No changelog available for this release."
           fi
@@ -126,4 +124,4 @@ jobs:
           body: ${{ steps.changelog.outputs.body }}
           prerelease: false   # ensures this release is marked as latest
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
