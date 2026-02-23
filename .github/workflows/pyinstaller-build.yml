@@ -89,6 +89,7 @@ jobs:
             dist/changelog.txt
             dist/Zlib-license.txt
             dist/Readme.md
+            dist/README.txt
 
   release:
     name: Create GitHub Release
