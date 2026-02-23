@@ -79,17 +79,13 @@ jobs:
         run: |
           find dist -type f -exec chmod 755 {} \;
 
-      - name: Upload artifacts + changelog + Readme
+      - name: Upload OS artifact and release zip (if exists)
         uses: actions/upload-artifact@v4
         with:
-          # Include github.run_id to avoid name conflicts
           name: ${{ matrix.artifact_name }}-${{ github.run_id }}
           path: |
-            dist/*
-            dist/changelog.txt
-            dist/Zlib-license.txt
-            dist/Readme.md
-            dist/README.txt
+            dist/PKsinew*       # executables / AppImages
+            dist/PKsinew-*.zip  # optional release zip
 
   release:
     name: Create GitHub Release
@@ -103,7 +99,7 @@ jobs:
         with:
           path: artifacts
 
-      - name: Flatten artifact structure (skip empty files)
+      - name: Flatten artifact structure
         run: |
           mkdir release-files
           find artifacts -type f -size +0 -exec cp {} release-files/ \;
@@ -111,11 +107,10 @@ jobs:
       - name: Read changelog
         id: changelog
         run: |
-          CHANGELOG=""
-          if [ -f release-files/changelog.txt ]; then
-            CHANGELOG=$(cat release-files/changelog.txt)
+          if [ -f dist/changelog.txt ]; then
+            CHANGELOG=$(cat dist/changelog.txt)
           else
-            echo "Warning: changelog.txt not found or empty. Release will have no body."
+            echo "Warning: changelog.txt not found or empty."
             CHANGELOG="No changelog available for this release."
           fi
           echo "::set-output name=body::$CHANGELOG"
