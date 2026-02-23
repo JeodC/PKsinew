@@ -94,38 +94,38 @@ jobs:
           path: dist/
 
   release:
-    name: Create GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
-    runs-on: ubuntu-latest
+  name: Create GitHub Release
+  if: startsWith(github.ref, 'refs/tags/')
+  needs: build
+  runs-on: ubuntu-latest
 
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+  steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
 
-      - name: Flatten artifact structure
-        run: |
-          mkdir release-files
-          find artifacts -type f -size +0 -exec cp {} release-files/ \;
+    - name: Copy only desired files
+      run: |
+        mkdir release-files
+        # copy only the main OS artifacts and release zip if exists
+        find artifacts -type f \( -name "PKsinew-*" -o -name "PKsinew-*.zip" \) -exec cp {} release-files/ \;
 
-      - name: Read changelog
-        id: changelog
-        run: |
-          if [ -f dist/changelog.txt ]; then
-            CHANGELOG=$(cat dist/changelog.txt)
-          else
-            echo "Warning: changelog.txt not found or empty."
-            CHANGELOG="No changelog available for this release."
-          fi
-          echo "::set-output name=body::$CHANGELOG"
+    - name: Read changelog
+      id: changelog
+      run: |
+        if [ -f dist/changelog.txt ]; then
+          CHANGELOG=$(cat dist/changelog.txt)
+        else
+          CHANGELOG="No changelog available for this release."
+        fi
+        echo "::set-output name=body::$CHANGELOG"
 
-      - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v1
-        with:
-          files: release-files/*
-          body: ${{ steps.changelog.outputs.body }}
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+    - name: Create Release and Upload Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release-files/*
+        body: ${{ steps.changelog.outputs.body }}
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
