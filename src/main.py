@@ -2343,7 +2343,7 @@ class GameScreen:
                 "Pokemon database not found",
                 "The database needs to be built before you can use all features.",
             )
-            return
+            return False
 
         # Check if database has all Pokemon (386 for Gen 3)
         try:
@@ -2361,11 +2361,15 @@ class GameScreen:
                     "Pokemon database incomplete",
                     f"Only {pokemon_count}/386 Pokemon found. Build the database to get all data.",
                 )
-            else:
-                print(f"[Sinew] Pokemon database OK: {pokemon_count} Pokemon")
+                return False
+        
+            print(f"[Sinew] Pokemon database OK: {pokemon_count} Pokemon")
+            return True
+        
         except Exception as e:
             print(f"[Sinew] Error checking database: {e}")
             self._show_db_warning("Database error", f"Could not read database: {e}")
+            return False
 
     def _show_db_warning(self, title, message):
         """Show a warning popup about the database"""
@@ -3844,13 +3848,7 @@ class GameScreen:
 
         if name == "Pokedex" and PokedexModal:
             # Check if database exists first
-            db_path = os.path.join("data", "pokemon_db.json")
-            if not os.path.exists(db_path):
-                self._show_db_warning(
-                    "Pokemon database not found",
-                    "Build the database first to use the Pokedex.",
-                )
-                return
+            if not self._check_database(): return
 
             try:
                 # Always collect save paths for potential combined mode

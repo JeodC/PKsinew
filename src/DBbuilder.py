@@ -127,7 +127,7 @@ if "items" not in pokemon_db:
 # Iterate Pokémon
 # -------------------------
 for i in range(1, MAX_POKEMON + 1):
-    if "ui_instance" in globals() and getattr(ui_instance, "cancel_requested", False):
+    if (ui := globals().get("ui_instance")) and getattr(ui, "cancel_requested", False):
         break
     pid_str = f"{i:03d}"
 

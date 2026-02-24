@@ -1,36 +1,20 @@
-name: Build Executables
+name: Release
 
 on:
-  push:
-    branches:
-      - "**"
-    tags:
-      - v*
-  pull_request:
-    branches:
-      - "**"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version tag (e.g., v1.3.2)'
+        required: true
+        type: string
+      is_prerelease:
+        description: 'Mark as pre-release?'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
-  check-syntax:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      
-      - name: Install Linting Tools
-        run: pip install flake8
-      
-      - name: Syntax Check (py_compile)
-        run: python -m compileall src/ -f -q
-      
-      - name: Lint for Errors
-        run: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-
   build:
-    needs: check-syntax
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -101,14 +85,47 @@ jobs:
           rm dist/PKsinew
           '
 
-      # trunk-ignore(checkov/CKV2_GHA_1)
-      - name: Set permissions
-        if: runner.os != 'Windows' && matrix.os != 'ubuntu-latest'
-        run: |
-          find dist -type f -exec chmod 755 {} \;
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: dist/
+          retention-days: 1
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-assets
+
+      - name: Read Changelog
+        id: changelog
+        run: |
+          if [ -f "dist/changelog.txt" ]; then
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            cat dist/changelog.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "body=Could not find changelog." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: Release ${{ inputs.version }}
+          body: ${{ steps.changelog.outputs.body }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ inputs.is_prerelease }}
+          files: ./release-assets/**/*
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
