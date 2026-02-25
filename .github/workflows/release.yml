@@ -116,8 +116,14 @@ jobs:
           awk "/^${VERSION}$/,/^=+$/ " CHANGELOG.md > release_notes.txt
           sed -i '${/^=\\+$/d;}' release_notes.txt
 
-          # Use a safe, GitHub-approved way to write multiline outputs
-          echo "body<<'END_OF_BODY'" >> $GITHUB_OUTPUT
+          # Ensure the file exists
+          if [ ! -s release_notes.txt ]; then
+            echo "Changelog section for $VERSION not found!"
+            exit 1
+          fi
+
+          # ✅ Use UNQUOTED delimiter for GitHub Actions
+          echo "body<<END_OF_BODY" >> $GITHUB_OUTPUT
           cat release_notes.txt >> $GITHUB_OUTPUT
           echo "END_OF_BODY" >> $GITHUB_OUTPUT
 
