@@ -107,37 +107,34 @@ jobs:
         with:
           path: ./release-assets
 
+      - name: Verify artifacts
+        run: |
+          echo "Listing release artifacts:"
+          ls -R ./release-assets
+          if [ ! "$(ls -A ./release-assets)" ]; then
+            echo "No artifacts found! Build may have failed."
+            exit 1
+          fi
+
       - name: Extract relevant changelog section
         id: changelog
         run: |
           VERSION="PKsinew ${{ inputs.version }}"
 
-          # Extract section from CHANGELOG.md up to the next ===== separator
+          # Extract changelog section for this version
           awk "/^${VERSION}$/,/^=+$/ " CHANGELOG.md > release_notes.txt
           sed -i '${/^=\\+$/d;}' release_notes.txt
 
-          # Ensure the file exists
+          # Fail if section not found
           if [ ! -s release_notes.txt ]; then
             echo "Changelog section for $VERSION not found!"
             exit 1
           fi
 
-          # ✅ Use UNQUOTED delimiter for GitHub Actions
+          # Write multiline body safely for GitHub Actions
           echo "body<<END_OF_BODY" >> $GITHUB_OUTPUT
           cat release_notes.txt >> $GITHUB_OUTPUT
           echo "END_OF_BODY" >> $GITHUB_OUTPUT
-
-      - name: Create and push tag (if not exists)
-        run: |
-          git fetch --tags
-          if git rev-parse "${{ inputs.version }}" >/dev/null 2>&1; then
-            echo "Tag already exists. Skipping tag creation."
-          else
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git tag "${{ inputs.version }}"
-            git push origin "${{ inputs.version }}"
-          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
