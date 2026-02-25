@@ -5,6 +5,7 @@ Pokemon Summary Screen - Emerald Style
 
 import json
 import os
+from config import DATA_DIR, POKEMON_DB_PATH
 
 import pygame
 
@@ -225,17 +226,9 @@ def _load_base_stats():
     if _base_stats_cache:
         return
 
-    # Use config for path if available
-    if CONFIG_AVAILABLE and hasattr(config, "POKEMON_DB_PATH"):
-        db_path = config.POKEMON_DB_PATH
-    elif CONFIG_AVAILABLE and hasattr(config, "BASE_DIR"):
-        db_path = os.path.join(config.BASE_DIR, "data", "pokemon_db.json")
-    else:
-        db_path = "data/pokemon_db.json"
-
-    if os.path.exists(db_path):
+    if os.path.exists(POKEMON_DB_PATH):
         try:
-            with open(db_path, "r", encoding="utf-8") as f:
+            with open(POKEMON_DB_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
             for value in data.items():
                 if isinstance(value, dict) and "id" in value and "stats" in value:
@@ -530,19 +523,7 @@ class PokemonSummary:
         if raw:
             species = raw.get("species", 0)
             if species and species > 0:
-                # Use config if available
-                if CONFIG_AVAILABLE and hasattr(config, "get_sprite_path"):
-                    sprite_paths = [config.get_sprite_path(species, sprite_type="gen3")]
-                elif CONFIG_AVAILABLE and hasattr(config, "GEN3_NORMAL_DIR"):
-                    sprite_paths = [
-                        os.path.join(config.GEN3_NORMAL_DIR, f"{species:03d}.png")
-                    ]
-                else:
-                    sprite_paths = [
-                        f"data/sprites/gen3/normal/{species:03d}.png",
-                        f"data/sprites/gen3/normal/{species}.png",
-                        f"data/sprites/gen3/{species}.png",
-                    ]
+                sprite_paths = [config.get_sprite_path(species, sprite_type="gen3")]
                 for path in sprite_paths:
                     if os.path.exists(path):
                         try:

@@ -120,6 +120,7 @@ else:
 # Ensure item sprites are in DB
 if "items" not in pokemon_db:
     pokemon_db["items"] = {
+        # HARDCODED PATH, CHANGE!
         key: f"sprites/items/{filename}" for key, filename in ITEM_SPRITES.items()
     }
 
@@ -242,11 +243,13 @@ for i in range(1, MAX_POKEMON + 1):
             "evolution_chain": evolution_chain_info,
             "sprites": {
                 "gen3_normal": (
+                    # HARDCODED PATH, CHANGE!
                     f"sprites/gen3/normal/{pid_str}.png"
                     if os.path.exists(gen3_normal_path)
                     else None
                 ),
                 "gen3_shiny": (
+                    # HARDCODED PATH, CHANGE!
                     f"sprites/gen3/shiny/{pid_str}.png"
                     if os.path.exists(gen3_shiny_path)
                     else None

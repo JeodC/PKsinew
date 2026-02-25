@@ -3765,7 +3765,7 @@ class GameScreen:
         # events_claimed is now per-game: { "Ruby": {"eon_ticket": true}, "LeafGreen": {...} }
         # We flatten across all games to see if every ticket has been given out at least once.
         try:
-            data_path = os.path.join("data", "sinew_data.json")
+            data_path = os.path.join(SAVES_DIR, "sinew", "sinew_data.json")
             if os.path.exists(data_path):
                 with open(data_path, "r") as f:
                     data = json.load(f)

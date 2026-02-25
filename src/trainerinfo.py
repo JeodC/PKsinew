@@ -9,7 +9,7 @@ import os
 import pygame
 
 import ui_colors
-from config import FONT_PATH
+from config import FONT_PATH, SPRITES_DIR
 from controller import NavigableList, get_controller
 from save_data_manager import get_manager
 from ui_components import Button
@@ -154,7 +154,7 @@ class TrainerInfoScreen:
 
         # Badge folder path - FRLG uses Kanto, RSE uses Hoenn
         if game_type == "FRLG":
-            badge_folder = os.path.join("data", "sprites", "badges", "kanto")
+            badge_folder = os.path.join(SPRITES_DIR, "badges", "kanto")
             # Kanto badge names (in order)
             badge_names = [
                 "boulder",
@@ -167,7 +167,7 @@ class TrainerInfoScreen:
                 "earth",
             ]
         else:
-            badge_folder = os.path.join("data", "sprites", "badges", "hoenn")
+            badge_folder = os.path.join(SPRITES_DIR, "badges", "hoenn")
             # Hoenn badge names (in order)
             badge_names = [
                 "stone",

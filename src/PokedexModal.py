@@ -6,7 +6,7 @@ import pygame
 
 # Import ui_colors module for dynamic theme support
 import ui_colors
-from config import FONT_PATH
+from config import FONT_PATH, POKEMON_DB_PATH, GEN3_NORMAL_DIR, SPRITES_DIR
 from ui_components import Button
 
 # Constants
@@ -15,8 +15,6 @@ H_PADDING = 8
 TOPBOT_PAD = 20
 RIGHT_TOP_PAD = 4
 ITEM_HEIGHT_DEFAULT = 24
-SPRITE_FOLDER = os.path.join("data", "sprites", "gen3", "normal")
-POKEMON_JSON = os.path.join("data", "pokemon_db.json")
 DEFAULT_SCREEN = (640, 480)
 FADE_ALPHA = 100
 
@@ -36,7 +34,7 @@ class PokedexModal:
         self,
         parent=None,
         pokedex_name="National Dex",
-        json_path=POKEMON_JSON,
+        json_path=POKEMON_DB_PATH,
         close_callback=None,
         get_current_game_callback=None,
         set_game_callback=None,
@@ -192,13 +190,8 @@ class PokedexModal:
         self.pokeball_icon = None
         pokeball_size = max(14, int(self.screen_h * 0.045))  # Slightly larger base size
         pokeball_paths = [
-            os.path.join(
-                "data", "sprites", "items", "poke-ball.png"
-            ),  # Correct path with hyphen
-            os.path.join("data", "sprites", "items", "pokeball.png"),
-            os.path.join("data", "sprites", "items", "poke_ball.png"),
-            os.path.join("data", "sprites", "ball", "pokeball.png"),
-            os.path.join("data", "items", "pokeball.png"),
+            os.path.join(SPRITES_DIR, "items", "poke-ball.png"),
+            os.path.join(SPRITES_DIR, "items", "pokeball.png"),
         ]
         for ppath in pokeball_paths:
             if os.path.exists(ppath):
@@ -240,9 +233,8 @@ class PokedexModal:
         # Load masterball icon for "caught in all games"
         self.masterball_icon = None
         masterball_paths = [
-            os.path.join("data", "sprites", "icons", "master-ball.png"),
-            os.path.join("data", "sprites", "items", "master-ball.png"),
-            os.path.join("data", "sprites", "items", "masterball.png"),
+            os.path.join(SPRITES_DIR, "items", "master-ball.png"),
+            os.path.join(SPRITES_DIR, "items", "masterball.png"),
         ]
         for mpath in masterball_paths:
             if os.path.exists(mpath):
@@ -258,23 +250,17 @@ class PokedexModal:
                     print(f"[Pokedex] Failed to load masterball {mpath}: {e}")
 
         # Load eye icon for "seen but not caught"
-        self.eye_icon = None
-        eye_paths = [
-            os.path.join("data", "sprites", "icons", "eye.png"),
-            os.path.join("data", "sprites", "items", "eye.png"),
-        ]
-        for epath in eye_paths:
-            if os.path.exists(epath):
-                try:
-                    self.eye_icon = pygame.image.load(epath).convert_alpha()
-                    # Use smoothscale for eye icon (looks better anti-aliased)
-                    self.eye_icon = pygame.transform.smoothscale(
-                        self.eye_icon, (pokeball_size, pokeball_size)
-                    )
-                    print(f"[Pokedex] Loaded eye icon from: {epath}")
-                    break
-                except Exception as e:
-                    print(f"[Pokedex] Failed to load eye {epath}: {e}")
+        self.eye_icon = os.path.join(SPRITES_DIR, "items", "eye.png")
+        if os.path.exists(self.eye_icon):
+            try:
+                self.eye_icon = pygame.image.load(self.eye_icon).convert_alpha()
+                # Use smoothscale for eye icon (looks better anti-aliased)
+                self.eye_icon = pygame.transform.smoothscale(
+                    self.eye_icon, (pokeball_size, pokeball_size)
+                )
+                print(f"[Pokedex] Loaded eye icon from: {self.eye_icon}")
+            except Exception as e:
+                print(f"[Pokedex] Failed to load eye {self.eye_icon}: {e}")
 
         # Load game icons for combined mode display
         self.game_icons = {}
@@ -282,7 +268,7 @@ class PokedexModal:
             18, int(self.screen_h * 0.055)
         )  # Slightly larger than pokeball
         self.game_icon_size = game_icon_size
-        icon_dir = os.path.join("data", "sprites", "icons")
+        icon_dir = os.path.join(SPRITES_DIR, "icons")
 
         for game_name, icon_file in GAME_ICON_FILES.items():
             icon_path = os.path.join(icon_dir, icon_file)
@@ -392,7 +378,7 @@ class PokedexModal:
     def _load_and_presize_sprites(self):
         for i, p in enumerate(self.pokemon_data):
             poke_id = p.get("id", i + 1)
-            path = os.path.join(SPRITE_FOLDER, f"{poke_id:03d}.png")
+            path = os.path.join(GEN3_NORMAL_DIR, f"{poke_id:03d}.png")
             img = (
                 pygame.image.load(path).convert_alpha()
                 if os.path.exists(path)

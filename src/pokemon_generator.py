@@ -12,6 +12,8 @@ import random
 import struct
 from typing import Dict, List, Optional, Tuple, Union
 
+from config import ACH_REWARDS_PATH
+
 # =============================================================================
 # CONSTANTS
 # =============================================================================
@@ -1765,34 +1767,17 @@ class PokemonGenerator:
     def _load_recipes(self):
         """Load recipes from rewards.json if available."""
         try:
-            # Try multiple paths
-            paths = [
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "data",
-                    "achievements",
-                    "rewards",
-                    "rewards.json",
-                ),
-                os.path.join(os.path.dirname(__file__), "rewards.json"),
-                "data/achievements/rewards/rewards.json",
-                "rewards.json",
-            ]
-
-            for path in paths:
-                if os.path.exists(path):
-                    with open(path, "r") as f:
-                        data = json.load(f)
-                        # Use achievement ID as key if present, otherwise use species name
-                        # This prevents duplicate species from overwriting each other
-                        self.recipes = {}
-                        for r in data.get("rewards", []):
-                            key = r.get("achievement") or r.get("species", "")
-                            self.recipes[key] = r
-                        print(
-                            f"[PokemonGenerator] Loaded {len(self.recipes)} recipes from {path}"
-                        )
-                        return
+            if os.path.exists(ACH_REWARDS_PATH):
+                with open(ACH_REWARDS_PATH, "r") as f:
+                    data = json.load(f)
+                    # Use achievement ID as key if present, otherwise use species name
+                    # This prevents duplicate species from overwriting each other
+                    self.recipes = {}
+                    for r in data.get("rewards", []):
+                        key = r.get("achievement") or r.get("species", "")
+                        self.recipes[key] = r
+                    print(f"[PokemonGenerator] Loaded {len(self.recipes)} recipes from {ACH_REWARDS_PATH}")
+                    return
 
         except Exception as e:
             print(f"[PokemonGenerator] Could not load recipes: {e}")
