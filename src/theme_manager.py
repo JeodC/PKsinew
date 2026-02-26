@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Theme Manager
 Handles loading, applying, and saving theme preferences

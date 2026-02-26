@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Controller Profiles Database for Sinew
 Known controller mappings for auto-detection and automatic configuration.

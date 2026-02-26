@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Pokemon Summary Screen - Emerald Style
 3 tabs: Info (with stats), Moves, Contest (RSE only)
@@ -5,7 +7,7 @@ Pokemon Summary Screen - Emerald Style
 
 import json
 import os
-from config import DATA_DIR, POKEMON_DB_PATH
+from config import POKEMON_DB_PATH
 
 import pygame
 

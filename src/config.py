@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Configuration
 All paths, constants, and configuration settings

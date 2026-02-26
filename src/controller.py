@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Controller Support Module for Sinew
 Handles gamepad/joystick input with standard button mappings

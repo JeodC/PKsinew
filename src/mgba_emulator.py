@@ -1,5 +1,9 @@
-# mgba_emulator.py - mGBA libretro core wrapper for Sinew
-# Integrates GBA emulation into the Sinew Pokemon save manager
+#!/usr/bin/env python3
+
+"""
+mgba_emulator.py - mGBA libretro core wrapper for Sinew
+Integrates GBA emulation into the Sinew Pokemon save manager
+"""
 
 import ctypes
 import os

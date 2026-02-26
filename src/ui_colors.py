@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Color and Font Definitions
 All color constants and font settings used throughout the UI

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew UI Components with Controller Support
 Reusable UI elements for the application

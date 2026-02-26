@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 GIF Sprite Handler for Pokemon Showdown Sprites
 Handles loading and animating GIF sprites in Pygame

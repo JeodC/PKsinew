@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Gen 3 Pokemon Item Names Database
 Item IDs for FireRed/LeafGreen

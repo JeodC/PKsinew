@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Pokemon Database Manager
 Handles loading and managing Pokemon data and sprites

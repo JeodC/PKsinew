@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Save Data Manager - Bridges Gen3 Parser to UI
 Handles loading save files and providing data to UI screens

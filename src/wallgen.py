@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+Sinew Wallpaper Generator
+Generates themed wallpapers for each Pokemon game and a special Sinew logo wallpaper.
+"""
+
 import os
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont

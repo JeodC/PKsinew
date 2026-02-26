@@ -1,5 +1,9 @@
-# Gen 3 Move Names (Pokemon Ruby/Sapphire/Emerald/FireRed/LeafGreen)
-# Format: move_id: (name, type, power, accuracy, pp)
+#!/usr/bin/env python3
+
+"""
+Gen 3 Move Names (Pokemon Ruby/Sapphire/Emerald/FireRed/LeafGreen)
+Format: move_id: (name, type, power, accuracy, pp)
+"""
 
 MOVE_DATA = {
     0: ("---", "normal", 0, 0, 0),

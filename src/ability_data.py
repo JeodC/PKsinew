@@ -1,5 +1,8 @@
-# Gen 3 Ability Data
-# Pokemon abilities for Ruby/Sapphire/Emerald/FireRed/LeafGreen
+#!/usr/bin/env python3
+"""
+Gen 3 Pokemon Ability Data
+Pokemon abilities for Ruby/Sapphire/Emerald/FireRed/LeafGreen
+"""
 
 ABILITY_NAMES = {
     0: "---",

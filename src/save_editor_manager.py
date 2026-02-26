@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Save Editor Manager
 Handles save file loading, parsing, and display operations
