@@ -22,6 +22,8 @@ from enum import IntEnum
 
 import pygame
 
+from config import SETTINGS_FILE
+
 
 class ControllerButton(IntEnum):
     """Standard button indices - can be remapped"""
@@ -196,7 +198,7 @@ class ControllerManager:
         import json
         import os
 
-        config_file = self._get_settings_path()
+        config_file = SETTINGS_FILE
 
         try:
             if os.path.exists(config_file):
@@ -224,20 +226,6 @@ class ControllerManager:
         except Exception as e:
             print(f"[Controller] Error loading keyboard config: {e}")
             self._pending_swap_ab = False
-
-    @staticmethod
-    def _get_settings_path():
-        """Get the path to sinew_settings.json"""
-        import os
-
-        try:
-            import config as cfg
-
-            if hasattr(cfg, "SETTINGS_FILE"):
-                return cfg.SETTINGS_FILE
-        except ImportError:
-            pass
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dist", "saves", "sinew", "sinew_settings.json")
 
     def _apply_profile_for_controller(self, joy):
         """

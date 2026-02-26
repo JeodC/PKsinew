@@ -16,6 +16,8 @@ Profiles are matched in order:
 import json
 import os
 
+from config import SETTINGS_FILE
+
 # ============================================================================
 # KNOWN CONTROLLER PROFILES
 # ============================================================================
@@ -63,8 +65,8 @@ PROFILES = [
             "Y": [3],
             "L": [4],
             "R": [5],
-            "SELECT": [6],
-            "START": [7],
+            "SELECT": [8],   # ROCKNIX-confirmed (was 6)
+            "START": [9],    # ROCKNIX-confirmed (was 7)
         },
     },
     # Powkiddy generic (RGB30, RK2023, etc.)
@@ -641,18 +643,6 @@ def get_profile_by_id(profile_id):
 # ============================================================================
 
 
-def _get_settings_path():
-    """Get the path to sinew_settings.json"""
-    try:
-        import config as cfg
-
-        if hasattr(cfg, "SETTINGS_FILE"):
-            return cfg.SETTINGS_FILE
-    except ImportError:
-        pass
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dist", "saves", "sinew", "sinew_settings.json")
-
-
 def load_saved_profile(controller_name, guid=None):
     """
     Load a saved controller profile from settings.
@@ -664,7 +654,7 @@ def load_saved_profile(controller_name, guid=None):
     Returns:
         dict with mapping if found, None otherwise
     """
-    config_file = _get_settings_path()
+    config_file = SETTINGS_FILE
     try:
         if os.path.exists(config_file):
             with open(config_file, "r") as f:
@@ -708,7 +698,7 @@ def save_controller_profile(controller_name, mapping, profile_id="custom", guid=
         profile_id: Profile ID that was the base
         guid: Optional SDL GUID
     """
-    config_file = _get_settings_path()
+    config_file = SETTINGS_FILE
     try:
         data = {}
         if os.path.exists(config_file):
@@ -780,7 +770,7 @@ def resolve_mapping(controller_name, guid=None, num_buttons=0, num_axes=0, num_h
         return detected
 
     # 3. Check legacy flat mapping in settings
-    config_file = _get_settings_path()
+    config_file = SETTINGS_FILE
     try:
         if os.path.exists(config_file):
             with open(config_file, "r") as f:
