@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'New version tag (e.g., v1.3.4)'
+        description: "New version tag (e.g., v1.3.4)"
         required: true
         type: string
       is_prerelease:
-        description: 'Mark as pre-release?'
+        description: "Mark as pre-release?"
         required: false
         type: boolean
         default: false
@@ -17,18 +17,26 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             artifact_name: PKsinew-Linux_x86-64
+            artifact_path: dist/PKsinew-Linux_x86-64.AppImage
+
           - os: macos-latest
             artifact_name: PKsinew-macOS
+            artifact_path: dist/PKsinew
+
           - os: windows-latest
             artifact_name: PKsinew-Windows
+            artifact_path: dist/PKsinew.exe
+
           - os: ubuntu-22.04-arm
             artifact_name: PKsinew-Linux_aarch64
+            artifact_path: dist/PKsinew
 
     steps:
       - name: Checkout code
@@ -49,7 +57,7 @@ jobs:
       - name: Build executable
         run: pyinstaller --clean PKsinew.spec
 
-      - name: Build AppImage (Ubuntu)
+      - name: Build AppImage (Ubuntu x86_64)
         if: matrix.os == 'ubuntu-latest'
         run: |
           docker run --rm -v "$PWD:/work" ubuntu:20.04 bash -c '
@@ -66,15 +74,14 @@ jobs:
           printf "#!/bin/sh\nHERE=\"\$(dirname \"\$(readlink -f \"\$0\")\")\"\ncd \"\$HERE\"\nexec \"\$HERE/usr/bin/PKsinew\" \"\$@\"\n" > AppDir/AppRun
           chmod +x AppDir/AppRun
           ./squashfs-root/AppRun AppDir dist/PKsinew-Linux_x86-64.AppImage
-          chmod +x dist/PKsinew dist/PKsinew-Linux_x86-64.AppImage
-          rm dist/PKsinew
+          chmod +x dist/PKsinew-Linux_x86-64.AppImage
           '
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: dist/
+          path: ${{ matrix.artifact_path }}
           retention-days: 1
 
   create-release:
@@ -111,19 +118,19 @@ jobs:
             echo "Changelog section for $VERSION not found!"
             exit 1
           fi
-          echo "body<<END_OF_BODY" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
           cat release_notes.txt >> $GITHUB_OUTPUT
-          echo "END_OF_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub release with artifacts
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.version }}
           name: Release ${{ inputs.version }}
           body: ${{ steps.changelog.outputs.body }}
           prerelease: ${{ inputs.is_prerelease }}
-          files: ./release-assets/**/*        # attach all artifacts
+          files: ./release-assets/**/*
           generate_release_notes: false
-          replace_assets: true                # safe replacement
+          replace_assets: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
