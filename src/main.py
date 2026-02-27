@@ -12,7 +12,7 @@ import time
 import builtins
 import platform as _platform
 from datetime import datetime
-from logging.handlers import RotatingFileHandler
+# Note: No longer need RotatingFileHandler - using simple FileHandler with mode='w'
 
 # --- ARM Linux SDL2 preload (MUST happen before pygame import) ---
 # The PyInstaller-bundled SDL2 lacks kmsdrm support on minimal CFWs (ROCKNIX, ArkOS, JELOS, etc.)
@@ -67,7 +67,7 @@ from ui_components import Button
 def setup_logging():
     """
     Set up logging to file only.
-    Creates sinew.log in the base directory with rotation.
+    Creates sinew.log in the base directory, overwriting previous session.
     Console output is handled separately by the print redirector.
     """
     # Determine base directory for log file
@@ -87,10 +87,10 @@ def setup_logging():
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
-    # File handler with rotation (5MB max, keep 3 backups)
+    # File handler - overwrites each session (no rotation)
     try:
-        file_handler = RotatingFileHandler(
-            log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"  # 5MB
+        file_handler = logging.FileHandler(
+            log_file, mode='w', encoding="utf-8"
         )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
