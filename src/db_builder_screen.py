@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Database Builder Screen
 Shows a terminal-like output box for building/rebuilding the Pokemon database

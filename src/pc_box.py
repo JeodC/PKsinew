@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 PC Box UI with Controller Support
 Displays Pokemon PC storage with gamepad navigation
@@ -8,7 +10,7 @@ import os
 import sys
 
 import pygame
-from pygame.locals import *
+from pygame.locals import MOUSEBUTTONDOWN
 
 import ui_colors
 from config import (
@@ -3304,7 +3306,7 @@ class PCBox:
                 # Skip if caller already loaded a fresh parser (avoids double parse)
                 if getattr(self, "_skip_reload", False):
                     print(
-                        f"[PCBox] Skipping reload (fresh parser already set)",
+                        "[PCBox] Skipping reload (fresh parser already set)",
                         file=sys.stderr,
                         flush=True,
                     )

@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+
+"""
+Party Screen UI for PKsinew
+Displays current party Pokemon with sprites, levels, HP, and allows navigation
+"""
+
 import pygame
 
 import ui_colors

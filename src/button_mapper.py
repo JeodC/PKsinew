@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Button Mapper
 Visual GBA-style button mapping screen with controller support

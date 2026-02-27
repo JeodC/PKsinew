@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Gen 3 Save Writer Module
 Handles writing Pokemon to save files for transfers between saves.

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Item Bag UI Screen with Controller Support
 Displays items parsed from Gen 3 save file

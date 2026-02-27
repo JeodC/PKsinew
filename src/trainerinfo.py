@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Trainer Info Screen with Controller Support
 Displays trainer card information with gamepad navigation

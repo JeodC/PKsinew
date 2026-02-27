@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Storage System
 Cross-game Pokemon storage that persists outside of individual save files.

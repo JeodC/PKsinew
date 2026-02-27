@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Events Screen - Event Item Distribution System
 Allows players who have become Champion (8 badges) to obtain event items

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Achievements System for Sinew
 Manages achievement tracking, unlocking, rewards, and display.

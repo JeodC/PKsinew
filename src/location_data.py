@@ -1,6 +1,9 @@
-# Gen 3 Met Location Data
-# Complete location database based on internal index numbers
-# Source: Bulbapedia - List of locations by index number in Generation III
+#!/usr/bin/env python3
+"""
+Gen 3 Met Location Data
+Complete location database based on internal index numbers
+Source: Bulbapedia - List of locations by index number in Generation III
+"""
 
 # =============================================================================
 # RSE LOCATIONS (0x00-0x57, recognized by RS and E)

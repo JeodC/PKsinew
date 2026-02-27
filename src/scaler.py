@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+Scaler Module for Sinew
+Handles resolution scaling and fullscreen for the game.
+"""
+
 import os
 import platform
 

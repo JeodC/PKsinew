@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Pokemon Generator for Sinew
 Generates valid Gen 3 Pokemon byte data (80 bytes) from JSON recipes.

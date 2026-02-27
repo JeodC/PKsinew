@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Export Modal
 View and export save data in readable format

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Themes Screen
 Browse and apply visual themes

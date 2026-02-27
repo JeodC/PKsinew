@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 achievements_data.py
 

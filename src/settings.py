@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Sinew Main Setup / Settings
 Tabbed settings modal with controller support

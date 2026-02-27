@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Fetch Gen3 sprites (normal + shiny), item sprites (Poké Ball, Master Ball, Eggs),
 and metadata (description, abilities, egg groups, evolution chain, forms, types, stats, height, weight).

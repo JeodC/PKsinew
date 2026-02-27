@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Gen 3 Parser Extensions
 Adds box name parsing and contest data parsing

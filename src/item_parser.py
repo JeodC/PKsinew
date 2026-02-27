@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Gen 3 Item Parser Module - Multi-Game Support
 

@@ -1,4 +1,10 @@
-# PokedexModal.py
+#!/usr/bin/env python3
+
+"""
+PokedexModal
+Displays a scrollable list of Pokemon with seen/caught status
+"""
+
 import json
 import os
 

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Trade Evolution System for Sinew
 Handles Pokemon that evolve through trading in the main games.
