@@ -1330,14 +1330,14 @@ class MgbaEmulator:
             init_ok = False
             for attempt in range(max_attempts):
                 try:
-                    # Pre-init with specific settings for reliability
-                    pygame.mixer.pre_init(
+                    # Init with explicit params to guarantee channels=2 regardless of
+                    # any previously active mixer config (e.g. 8-ch menu music mixer)
+                    pygame.mixer.init(
                         frequency=self.sample_rate,
                         size=-16,
                         channels=2,
                         buffer=audio_buffer,
                     )
-                    pygame.mixer.init()
 
                     # Verify it actually initialized
                     init_info = pygame.mixer.get_init()
@@ -1366,11 +1366,10 @@ class MgbaEmulator:
                     audio_buffer = default_buf
                     self.audio_queue = deque(maxlen=default_depth)
                     try:
-                        pygame.mixer.pre_init(
+                        pygame.mixer.init(
                             frequency=self.sample_rate, size=-16, channels=2,
                             buffer=default_buf,
                         )
-                        pygame.mixer.init()
                         init_info = pygame.mixer.get_init()
                         if init_info:
                             print(f"[MgbaEmulator] Mixer initialized on fallback: {init_info}")
@@ -2021,13 +2020,12 @@ class MgbaEmulator:
                     pass
 
                 try:
-                    pygame.mixer.pre_init(
+                    pygame.mixer.init(
                         frequency=sample_rate,
                         size=-16,
                         channels=2,
                         buffer=audio_buffer,
                     )
-                    pygame.mixer.init()
                 except Exception as e:
                     print(f"[MgbaEmulator] Mixer reinit failed with buffer={audio_buffer}: {e}")
                     # Fallback to platform defaults
@@ -2037,11 +2035,10 @@ class MgbaEmulator:
                     self.audio_settings_reverted = True
                     audio_buffer = default_buf
                     self.audio_queue = deque(maxlen=default_depth)
-                    pygame.mixer.pre_init(
+                    pygame.mixer.init(
                         frequency=sample_rate, size=-16, channels=2,
                         buffer=default_buf,
                     )
-                    pygame.mixer.init()
 
                 self._last_audio_buffer = audio_buffer
                 pygame.mixer.set_num_channels(8)
