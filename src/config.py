@@ -142,6 +142,75 @@ def _is_handheld():
 IS_HANDHELD = _is_handheld()
 
 
+def _detect_cfw():
+    """
+    Detect which CFW is running (for CFW-specific tweaks).
+    Returns CFW name string or None if not on a handheld.
+    """
+    if not IS_HANDHELD:
+        return None
+    
+    # Check for CFW-specific markers
+    # AmberELEC: /etc/os-release contains "AmberELEC"
+    # ArkOS: /etc/os-release contains "ArkOS"
+    # ROCKNIX: /etc/os-release contains "ROCKNIX" or "JELOS" (former name)
+    # muOS: Check for /opt/muos/
+    # Knulli: Check for /usr/share/knulli
+    
+    try:
+        if os.path.exists('/etc/os-release'):
+            with open('/etc/os-release', 'r') as f:
+                content = f.read().lower()
+                if 'amberelec' in content:
+                    return 'amberelec'
+                elif 'arkos' in content:
+                    return 'arkos'
+                elif 'rocknix' in content or 'jelos' in content:
+                    return 'rocknix'
+        
+        # muOS detection - check for muOS-specific directory
+        if os.path.exists('/opt/muos/'):
+            return 'muos'
+        
+        # Knulli detection - check for Knulli-specific directory
+        if os.path.exists('/usr/share/knulli'):
+            return 'knulli'
+            
+    except Exception as e:
+        print(f"[CFW Detection] Failed: {e}")
+    
+    return 'unknown'
+
+
+CFW_NAME = _detect_cfw() if IS_HANDHELD else None
+
+
+def _detect_video_driver():
+    """
+    Detect which video driver is in use.
+    Returns 'panfrost' (open-source Mali), 'mali' (proprietary), or None.
+    """
+    if not IS_HANDHELD:
+        return None
+    
+    try:
+        # Check /sys/module for loaded kernel modules
+        if os.path.exists('/sys/module/panfrost'):
+            return 'panfrost'
+        elif os.path.exists('/sys/module/mali'):
+            return 'mali'
+        elif os.path.exists('/sys/module/mali_kbase'):
+            return 'mali'
+        
+    except Exception as e:
+        print(f"[Video Driver Detection] Failed: {e}")
+    
+    return 'unknown'
+
+
+VIDEO_DRIVER = _detect_video_driver() if IS_HANDHELD else None
+
+
 # ===== Save Editor Paths =====
 
 # GBA ROM identification
@@ -404,11 +473,39 @@ PARSER_LOCATIONS = [
 
 # ===== Audio Defaults =====
 # Platform-tuned defaults for the pygame mixer buffer size and the internal
-# audio-queue depth used by the emulator's audio thread.  These can be
+# audio-queue depth used by the emulator's audio thread. These can be
 # overridden per-user via the mGBA → Audio section in Settings.
-AUDIO_BUFFER_DEFAULT = 1024        # samples – desktop / generic
-AUDIO_BUFFER_DEFAULT_ARM = 256     # samples – Linux ARM handhelds
-AUDIO_QUEUE_DEPTH_DEFAULT = 4      # max queued chunks before dropping
+
+def _get_audio_defaults():
+    """
+    Get audio defaults based on platform and CFW.
+    Returns tuple: (buffer_size, queue_depth)
+    """
+    if not IS_HANDHELD:
+        return 1024, 4  # Desktop defaults
+    
+    # CFW-specific audio profiles (tuned per platform)
+    # These are starting points - adjust after real-world testing
+    cfw_audio_profiles = {
+        'amberelec': (512, 4),   # Needs testing
+        'arkos': (512, 4),       # Needs testing
+        'rocknix': (256, 4),     # Verified working on X55
+        'muos': (512, 4),        # Needs testing
+        'knulli': (512, 4),      # Needs testing
+        'unknown': (256, 4),     # Conservative default for unrecognized CFW
+    }
+    
+    buffer, queue = cfw_audio_profiles.get(CFW_NAME, (256, 4))
+    print(f"[Audio] CFW={CFW_NAME}, buffer={buffer}, queue={queue}")
+    return buffer, queue
+
+# Calculate recommended defaults based on detected platform/CFW
+_AUDIO_BUFFER_RECOMMENDED, _AUDIO_QUEUE_RECOMMENDED = _get_audio_defaults()
+
+# Exposed constants for settings UI and initial config
+AUDIO_BUFFER_DEFAULT = 1024                    # Generic desktop default
+AUDIO_BUFFER_DEFAULT_ARM = _AUDIO_BUFFER_RECOMMENDED  # Use CFW-specific for ARM
+AUDIO_QUEUE_DEPTH_DEFAULT = _AUDIO_QUEUE_RECOMMENDED # Use CFW-specific queue depth
 
 # Allowed slider values exposed in Settings
 AUDIO_BUFFER_OPTIONS  = [128, 256, 512, 1024, 2048, 4096]
@@ -522,6 +619,17 @@ def print_paths():
     print(f"SAVES_DIR:    {SAVES_DIR}")
     print(f"CORES_DIR:    {CORES_DIR}")
     print(f"MGBA_CORE:    {MGBA_CORE_PATH}")
+    print("-" * 50)
+    print("Platform Detection:")
+    print(f"IS_HANDHELD:  {IS_HANDHELD}")
+    if IS_HANDHELD:
+        print(f"CFW_NAME:     {CFW_NAME}")
+        print(f"VIDEO_DRIVER: {VIDEO_DRIVER}")
+        print(f"Audio Buffer: {AUDIO_BUFFER_DEFAULT_ARM} samples")
+        print(f"Audio Queue:  {AUDIO_QUEUE_DEPTH_DEFAULT} chunks")
+    else:
+        print(f"Platform:     Desktop/PC")
+        print(f"Audio Buffer: {AUDIO_BUFFER_DEFAULT} samples")
     print("=" * 50)
 
 
