@@ -1,5 +1,5 @@
 
-PKsinew v1.3.6 
+PKsinew v1.3.6
 
 NEW:
 - Groundwork for external emulator and provider support by (@JeodC)
