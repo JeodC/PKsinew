@@ -301,7 +301,7 @@ def _extract_rom_from_zip(zip_path):
         return None
 
 
-def identify_rom(rom_path):
+def identify_rom(rom_path, keywords_hint=None):
     """
     Identify a GBA ROM file and return the canonical game name.
     Supports both .gba and .zip files (will extract .gba from zip).
@@ -312,6 +312,8 @@ def identify_rom(rom_path):
 
     Args:
         rom_path: Path to a .gba or .zip file
+        keywords_hint: Optional list of keywords to check before extracting zip
+                      (performance optimization - avoids extracting non-Pokemon ROMs)
 
     Returns:
         str: Game name e.g. "Emerald", or None if unrecognised
@@ -324,6 +326,15 @@ def identify_rom(rom_path):
     try:
         # Handle .zip files
         if rom_path.lower().endswith('.zip'):
+            # OPTIMIZATION: Check filename keywords before extracting
+            # Avoids extracting 100s of non-Pokemon ROMs in mixed folders
+            if keywords_hint:
+                name_lower = basename.lower()
+                has_keyword = any(kw.lower() in name_lower for kw in keywords_hint)
+                if not has_keyword:
+                    # Doesn't look like a Pokemon ROM - skip extraction
+                    return None
+            
             rom_data = _extract_rom_from_zip(rom_path)
             if rom_data is None:
                 return None

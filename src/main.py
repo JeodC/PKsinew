@@ -308,6 +308,9 @@ def _build_rom_scan_cache(roms_dir):
     """
     Scan roms_dir once, identify every .gba and .zip file, cache results.
     No-op if already scanned. Supports multiple directories independently.
+    
+    For .zip files, uses keyword pre-filtering to avoid extracting 
+    non-Pokemon ROMs (performance optimization for mixed ROM folders).
     """
     if roms_dir in _rom_scan_cache:
         return
@@ -318,11 +321,26 @@ def _build_rom_scan_cache(roms_dir):
         _rom_scan_cache[roms_dir] = scan
         return
 
+    # Build master keyword list from all games for pre-filtering
+    all_keywords = set()
+    for game_def in GAME_DEFINITIONS.values():
+        all_keywords.update(kw.lower() for kw in game_def.get("keywords", []))
+    
+    # Also add common Pokemon-related keywords for better matching
+    all_keywords.update(['pokemon', 'pkmn', 'emerald', 'ruby', 'sapphire', 'firered', 'leafgreen'])
+    
     for filename in os.listdir(roms_dir):
         if not filename.lower().endswith((".gba", ".zip")):
             continue
         rom_path = os.path.join(roms_dir, filename)
-        scan[rom_path] = identify_rom(rom_path)  # identify_rom() now handles both .gba and .zip
+        
+        # For .zip files, pass keywords hint to avoid extracting non-Pokemon ROMs
+        # This prevents extracting 100s of other GBA games in mixed ROM folders
+        if filename.lower().endswith('.zip'):
+            scan[rom_path] = identify_rom(rom_path, keywords_hint=all_keywords)
+        else:
+            # .gba files are always checked (no keyword filter)
+            scan[rom_path] = identify_rom(rom_path)
 
     _rom_scan_cache[roms_dir] = scan
     print(f"[GameScreen] ROM scan complete: {len(scan)} files in {roms_dir}")
@@ -3074,7 +3092,7 @@ class GameScreen:
         print(f"[Dev]   Sinew save    → {sinew_edit_path}")
 
         # --- Launch ---
-        success = self.external_emu.launch(rom_path, self.controller)
+        success = self.external_emu.launch(rom_path)
         if not success:
             if sinew_edit_path != ext_sav:
                 try:
@@ -4438,13 +4456,6 @@ if __name__ == "__main__":
 
     running = True
     while running:
-    
-        # If external emulator is running we pause sinew
-        if game_screen.external_emu and game_screen.external_emu.is_running:
-            pygame.time.wait(250)
-            pygame.event.pump()
-            continue
-
         dt = clock.tick(60)
 
         events = pygame.event.get()
