@@ -670,6 +670,7 @@ class KeyboardMapper:
         ("B", "Back"),
         ("L", "Page Up"),
         ("R", "Page Down"),
+        ("MENU", "Pause/Menu"),
     ]
 
     # Emulator GBA button actions
@@ -696,6 +697,7 @@ class KeyboardMapper:
         "B": [pygame.K_ESCAPE, pygame.K_x],
         "L": [pygame.K_PAGEUP, pygame.K_q],
         "R": [pygame.K_PAGEDOWN, pygame.K_e],
+        "MENU": [pygame.K_m],
     }
     DEFAULT_EMU = {
         "A": [pygame.K_z],

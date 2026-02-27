@@ -182,6 +182,7 @@ class ControllerManager:
             "B": [pygame.K_ESCAPE, pygame.K_x],
             "L": [pygame.K_PAGEUP, pygame.K_q],
             "R": [pygame.K_PAGEDOWN, pygame.K_e],
+            "MENU": [pygame.K_m],
         }
         self.kb_nav_map = {k: list(v) for k, v in self.DEFAULT_KB_NAV.items()}
 

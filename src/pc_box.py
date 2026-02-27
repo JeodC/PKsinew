@@ -3071,35 +3071,55 @@ class PCBox:
         return default
 
     def _check_pause_combo(self, ctrl):
-        """Check if the configured pause combo is held"""
-        # Reload setting each time to pick up changes
-        setting = self._load_pause_combo_setting()
+        """
+        Check if the configured pause combo is held (controller combo OR keyboard MENU key).
+        No hold timer - triggers immediately with debounce handled by caller.
+        
+        Returns:
+            bool: True if combo/key is currently pressed
+        """
+        combo_held = False
+        
+        # Check keyboard MENU key first (M by default)
+        try:
+            if ctrl._is_button_pressed("MENU"):
+                combo_held = True
+        except Exception:
+            pass
+        
+        # If MENU not held, check controller combo
+        if not combo_held:
+            # Reload setting each time to pick up changes
+            setting = self._load_pause_combo_setting()
 
-        if setting.get("type") == "custom":
-            # Custom single button - check via joystick directly
-            custom_btn = setting.get("button")
-            if custom_btn is not None:
+            if setting.get("type") == "custom":
+                # Custom single button - check via joystick directly
+                custom_btn = setting.get("button")
+                if custom_btn is not None:
+                    try:
+                        import pygame
+
+                        if pygame.joystick.get_count() > 0:
+                            joy = pygame.joystick.Joystick(0)
+                            joy.init()
+                            if custom_btn < joy.get_numbuttons():
+                                combo_held = joy.get_button(custom_btn)
+                    except Exception:
+                        pass
+            else:
+                # Button combo - check all required buttons
+                required_buttons = setting.get("buttons", ["START", "SELECT"])
                 try:
-                    import pygame
-
-                    if pygame.joystick.get_count() > 0:
-                        joy = pygame.joystick.Joystick(0)
-                        joy.init()
-                        if custom_btn < joy.get_numbuttons():
-                            return joy.get_button(custom_btn)
+                    all_pressed = True
+                    for btn_name in required_buttons:
+                        if not ctrl._is_button_pressed(btn_name):
+                            all_pressed = False
+                            break
+                    combo_held = all_pressed
                 except Exception:
-                    pass
-            return False
-        else:
-            # Button combo - check all required buttons
-            required_buttons = setting.get("buttons", ["START", "SELECT"])
-            try:
-                for btn_name in required_buttons:
-                    if not ctrl._is_button_pressed(btn_name):
-                        return False
-                return True
-            except Exception:
-                return False
+                    combo_held = False
+        
+        return combo_held
 
     def _get_pause_combo_name(self):
         """Get human-readable name for the pause combo"""

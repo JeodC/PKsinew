@@ -3314,8 +3314,9 @@ class GameScreen:
 
     def _check_emulator_pause_combo(self):
         """
-        Check if Start+Select are both held for pause combo.
-        Uses the emulator's built-in combo detection.
+        Check if pause combo is triggered.
+        The emulator's check_pause_combo() handles both controller combo AND keyboard MENU key,
+        including the hold timer (~0.5 seconds).
 
         Returns:
             bool: True if combo is triggered
@@ -3468,13 +3469,11 @@ class GameScreen:
         """
         Check pause combo directly using pygame input.
         Used when emulator is paused and we're in Sinew menu.
+        No hold timer - triggers immediately with debounce handled by caller.
 
         Returns:
-            bool: True if combo held for required frames
+            bool: True if combo/key is currently pressed
         """
-        if not hasattr(self, "_pause_combo_counter"):
-            self._pause_combo_counter = 0
-
         setting = getattr(
             self,
             "_pause_combo_setting",
@@ -3482,68 +3481,74 @@ class GameScreen:
         )
         combo_held = False
 
-        if setting.get("type") == "custom":
-            # Custom single button
-            custom_btn = setting.get("button")
-            if custom_btn is not None:
+        # Check keyboard MENU key first (M by default) - check keyboard directly
+        keys = pygame.key.get_pressed()
+        if self.controller and hasattr(self.controller, 'kb_nav_map'):
+            try:
+                menu_keys = self.controller.kb_nav_map.get("MENU", [pygame.K_m])
+                for menu_key in menu_keys:
+                    if keys[menu_key]:
+                        combo_held = True
+                        print(f"[Sinew] MENU key {pygame.key.name(menu_key)} detected in _check_pause_combo_direct")
+                        break
+            except Exception as e:
+                print(f"[Sinew] Error checking MENU key: {e}")
+
+        # If MENU not held, check controller combo
+        if not combo_held:
+            if setting.get("type") == "custom":
+                # Custom single button
+                custom_btn = setting.get("button")
+                if custom_btn is not None:
+                    try:
+                        if pygame.joystick.get_count() > 0:
+                            joy = pygame.joystick.Joystick(0)
+                            joy.init()
+                            if custom_btn < joy.get_numbuttons():
+                                combo_held = joy.get_button(custom_btn)
+                    except Exception:
+                        pass
+            else:
+                # Button combo
+                required_buttons = setting.get("buttons", ["START", "SELECT"])
+                buttons_held = {}
+
+                # Check keyboard (for START/SELECT)
+                if "START" in required_buttons:
+                    buttons_held["START"] = keys[pygame.K_RETURN]
+                if "SELECT" in required_buttons:
+                    buttons_held["SELECT"] = keys[pygame.K_BACKSPACE]
+
+                # Check controller
                 try:
                     if pygame.joystick.get_count() > 0:
                         joy = pygame.joystick.Joystick(0)
                         joy.init()
-                        if custom_btn < joy.get_numbuttons():
-                            combo_held = joy.get_button(custom_btn)
-                except Exception:
-                    pass
-        else:
-            # Button combo
-            required_buttons = setting.get("buttons", ["START", "SELECT"])
-            buttons_held = {}
+                        num_buttons = joy.get_numbuttons()
 
-            # Check keyboard (for START/SELECT)
-            keys = pygame.key.get_pressed()
-            if "START" in required_buttons:
-                buttons_held["START"] = keys[pygame.K_RETURN]
-            if "SELECT" in required_buttons:
-                buttons_held["SELECT"] = keys[pygame.K_BACKSPACE]
-
-            # Check controller
-            try:
-                if pygame.joystick.get_count() > 0:
-                    joy = pygame.joystick.Joystick(0)
-                    joy.init()
-                    num_buttons = joy.get_numbuttons()
-
-                    for btn_name in required_buttons:
-                        btn_indices = (
-                            [7]
-                            if btn_name == "START"
-                            else [6] if btn_name == "SELECT" else []
-                        )
-
-                        if self.controller and hasattr(self.controller, "button_map"):
-                            btn_indices = self.controller.button_map.get(
-                                btn_name, btn_indices
+                        for btn_name in required_buttons:
+                            btn_indices = (
+                                [7]
+                                if btn_name == "START"
+                                else [6] if btn_name == "SELECT" else []
                             )
 
-                        for idx in btn_indices:
-                            if isinstance(idx, int) and idx < num_buttons:
-                                if joy.get_button(idx):
-                                    buttons_held[btn_name] = True
-            except Exception:
-                pass
+                            if self.controller and hasattr(self.controller, "button_map"):
+                                btn_indices = self.controller.button_map.get(
+                                    btn_name, btn_indices
+                                )
 
-            # Check if all required buttons are held
-            combo_held = all(buttons_held.get(btn, False) for btn in required_buttons)
+                            for idx in btn_indices:
+                                if isinstance(idx, int) and idx < num_buttons:
+                                    if joy.get_button(idx):
+                                        buttons_held[btn_name] = True
+                except Exception:
+                    pass
 
-        if combo_held:
-            self._pause_combo_counter += 1
-            if self._pause_combo_counter >= 30:  # ~0.5 seconds at 60fps
-                self._pause_combo_counter = 0
-                return True
-        else:
-            self._pause_combo_counter = 0
+                # Check if all required buttons are held
+                combo_held = all(buttons_held.get(btn, False) for btn in required_buttons)
 
-        return False
+        return combo_held
 
     def _is_controller_combo_held(self):
         """Check if pause combo is currently held on controller."""
@@ -4027,6 +4032,17 @@ class GameScreen:
             keys = pygame.key.get_pressed()
             if keys[pygame.K_RETURN] and keys[pygame.K_BACKSPACE]:
                 self._pause_combo_active = True
+            
+            # Also block Enter if MENU key is held - check keyboard directly
+            if self.controller and hasattr(self.controller, 'kb_nav_map'):
+                try:
+                    menu_keys = self.controller.kb_nav_map.get("MENU", [pygame.K_m])
+                    for menu_key in menu_keys:
+                        if keys[menu_key]:
+                            self._pause_combo_active = True
+                            break
+                except Exception:
+                    pass
 
             # Resume when combo triggers and was previously released
             if combo_held and self._emulator_pause_combo_released:
@@ -4046,7 +4062,20 @@ class GameScreen:
                 return True
 
             # Reset release flag when keys are released
-            if not self._pause_combo_active and not self._is_controller_combo_held():
+            # Check if neither keyboard MENU, keyboard combo, nor controller combo is held
+            menu_held = False
+            keys = pygame.key.get_pressed()
+            if self.controller and hasattr(self.controller, 'kb_nav_map'):
+                try:
+                    menu_keys = self.controller.kb_nav_map.get("MENU", [pygame.K_m])
+                    for menu_key in menu_keys:
+                        if keys[menu_key]:
+                            menu_held = True
+                            break
+                except Exception:
+                    pass
+            
+            if not self._pause_combo_active and not self._is_controller_combo_held() and not menu_held:
                 self._emulator_pause_combo_released = True
 
         # Update GIF animation for current game

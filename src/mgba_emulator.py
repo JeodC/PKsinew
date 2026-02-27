@@ -665,6 +665,8 @@ class MgbaEmulator:
         to pygame key constants (integers).  Supports a list of keys per button
         for multi-key bindings.
 
+        Also loads the MENU key from keyboard_nav_map for pause/menu functionality.
+
         Falls back to built-in defaults for any missing entries.
         """
         import json
@@ -699,6 +701,9 @@ class MgbaEmulator:
 
         # Start from defaults
         self._kb_map = dict(DEFAULT_KB)
+        
+        # Default MENU key
+        self._menu_keys = [pygame.K_m]
 
         config_file = SETTINGS_FILE
 
@@ -707,6 +712,7 @@ class MgbaEmulator:
                 with open(config_file, "r") as f:
                     settings_data = json.load(f)
 
+                # Load emulator keyboard map
                 saved = settings_data.get("keyboard_emulator_map", {})
                 for btn_name, retro_id in NAME_TO_RETRO.items():
                     if btn_name in saved:
@@ -720,6 +726,16 @@ class MgbaEmulator:
 
                 if saved:
                     print(f"[MgbaEmulator] Loaded keyboard map from {config_file}")
+                
+                # Load MENU key from navigation map
+                nav_map = settings_data.get("keyboard_nav_map", {})
+                if "MENU" in nav_map:
+                    val = nav_map["MENU"]
+                    if isinstance(val, list):
+                        self._menu_keys = [v for v in val if isinstance(v, int)]
+                    elif isinstance(val, int):
+                        self._menu_keys = [val]
+                    print(f"[MgbaEmulator] Loaded MENU key(s): {self._menu_keys}")
         except Exception as e:
             print(f"[MgbaEmulator] Error loading keyboard config: {e}")
 
@@ -1828,10 +1844,12 @@ class MgbaEmulator:
 
     def check_pause_combo(self):
         """
-        Check if the configured pause combo is held.
+        Check if the configured pause combo is held (controller combo OR keyboard MENU key).
+        No hold timer - triggers immediately to avoid user frustration.
+        Debounce is handled by the caller.
 
         Returns:
-            bool: True if combo triggered (held for ~0.5 seconds)
+            bool: True if combo/key is currently pressed
         """
         if self._key_state is None:
             return False
@@ -1843,61 +1861,67 @@ class MgbaEmulator:
         )
         combo_held = False
 
-        if setting.get("type") == "custom":
-            # Custom single button
-            custom_btn = setting.get("button")
-            if custom_btn is not None and self._joystick:
-                try:
-                    if custom_btn < self._joystick.get_numbuttons():
-                        combo_held = self._joystick.get_button(custom_btn)
-                except Exception:
-                    pass
-        else:
-            # Button combo
-            required_buttons = setting.get("buttons", ["START", "SELECT"])
-            buttons_held = {}
+        # Check if keyboard MENU key is pressed (loaded from keyboard_nav_map)
+        # Default is pygame.K_m, but user can remap it
+        try:
+            # Try to get MENU key binding from keyboard nav map
+            menu_keys = getattr(self, "_menu_keys", [pygame.K_m])
+            for key in menu_keys:
+                if self._key_state[key]:
+                    combo_held = True
+                    break
+        except Exception:
+            pass
 
-            # Check keyboard
-            if "START" in required_buttons:
-                buttons_held["START"] = self._key_state[pygame.K_RETURN]
-            if "SELECT" in required_buttons:
-                buttons_held["SELECT"] = self._key_state[pygame.K_BACKSPACE]
+        # If MENU key not pressed, check configured controller combo
+        if not combo_held:
+            if setting.get("type") == "custom":
+                # Custom single button
+                custom_btn = setting.get("button")
+                if custom_btn is not None and self._joystick:
+                    try:
+                        if custom_btn < self._joystick.get_numbuttons():
+                            combo_held = self._joystick.get_button(custom_btn)
+                    except Exception:
+                        pass
+            else:
+                # Button combo
+                required_buttons = setting.get("buttons", ["START", "SELECT"])
+                buttons_held = {}
 
-            # Check gamepad
-            if self._joystick:
-                try:
-                    num_buttons = self._joystick.get_numbuttons()
+                # Check keyboard
+                if "START" in required_buttons:
+                    buttons_held["START"] = self._key_state[pygame.K_RETURN]
+                if "SELECT" in required_buttons:
+                    buttons_held["SELECT"] = self._key_state[pygame.K_BACKSPACE]
 
-                    # Map button names to gamepad indices.
-                    # No magic-number fallbacks — _gamepad_map was already
-                    # populated by _init_joystick (SDL config / profile / defaults).
-                    btn_map = {
-                        "START":  self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_START),
-                        "SELECT": self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_SELECT),
-                        "L":      self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_L),
-                        "R":      self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_R),
-                    }
+                # Check gamepad
+                if self._joystick:
+                    try:
+                        num_buttons = self._joystick.get_numbuttons()
 
-                    for btn_name in required_buttons:
-                        btn_idx = btn_map.get(btn_name)
-                        if btn_idx is not None and btn_idx < num_buttons:
-                            if self._joystick.get_button(btn_idx):
-                                buttons_held[btn_name] = True
-                except Exception:
-                    pass
+                        # Map button names to gamepad indices.
+                        # No magic-number fallbacks — _gamepad_map was already
+                        # populated by _init_joystick (SDL config / profile / defaults).
+                        btn_map = {
+                            "START":  self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_START),
+                            "SELECT": self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_SELECT),
+                            "L":      self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_L),
+                            "R":      self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_R),
+                        }
 
-            # Check if all required buttons are held
-            combo_held = all(buttons_held.get(btn, False) for btn in required_buttons)
+                        for btn_name in required_buttons:
+                            btn_idx = btn_map.get(btn_name)
+                            if btn_idx is not None and btn_idx < num_buttons:
+                                if self._joystick.get_button(btn_idx):
+                                    buttons_held[btn_name] = True
+                    except Exception:
+                        pass
 
-        if combo_held:
-            self._start_held_frames += 1
-            if self._start_held_frames >= self._pause_combo_frames:
-                self._start_held_frames = 0
-                return True
-        else:
-            self._start_held_frames = 0
+                # Check if all required buttons are held
+                combo_held = all(buttons_held.get(btn, False) for btn in required_buttons)
 
-        return False
+        return combo_held
 
     def toggle_pause(self):
         """Toggle pause state."""
