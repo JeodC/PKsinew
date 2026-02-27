@@ -69,24 +69,30 @@ class AchievementNotification:
             self.font_text = pygame.font.SysFont(None, 14)
             self.font_sinew = pygame.font.SysFont(None, 32)
 
-        # Load game icons
+        # Initialize empty icon dict (icons loaded on-demand)
         self.game_icons = {}
-        self._load_game_icons()
+
+    def _get_game_icon(self, game_name):
+        """Get game icon, loading it lazily if not already cached"""
+        if game_name not in self.game_icons:
+            icon_size = 36  # Size for the notification icon
+            filename = self.GAME_ICON_FILES.get(game_name)
+            if filename:
+                icon_path = os.path.join(SPRITES_DIR, "icons", filename)
+                try:
+                    if os.path.exists(icon_path):
+                        icon = pygame.image.load(icon_path).convert_alpha()
+                        icon = pygame.transform.smoothscale(icon, (icon_size, icon_size))
+                        self.game_icons[game_name] = icon
+                        print(f"[AchNotify] Loaded icon: {game_name}")
+                except Exception as e:
+                    print(f"[AchNotify] Could not load icon for {game_name}: {e}")
+        
+        return self.game_icons.get(game_name)
 
     def _load_game_icons(self):
-        """Load game icons for achievement display"""
-        icon_size = 36  # Size for the notification icon
-
-        for game_name, filename in self.GAME_ICON_FILES.items():
-            icon_path = os.path.join(SPRITES_DIR, "icons", filename)
-            try:
-                if os.path.exists(icon_path):
-                    icon = pygame.image.load(icon_path).convert_alpha()
-                    icon = pygame.transform.smoothscale(icon, (icon_size, icon_size))
-                    self.game_icons[game_name] = icon
-                    print(f"[AchNotify] Loaded icon: {game_name}")
-            except Exception as e:
-                print(f"[AchNotify] Could not load icon for {game_name}: {e}")
+        """Deprecated - icons now loaded lazily via _get_game_icon()"""
+        pass
 
     def queue_achievement(self, achievement):
         """Add an achievement to the notification queue"""
@@ -188,9 +194,9 @@ class AchievementNotification:
 
         # Draw game icon or Sinew "S"
         game = self.current.get("game", "Sinew")
-        if game in self.game_icons:
+        icon = self._get_game_icon(game)  # Lazy load icon
+        if icon:
             # Use game icon
-            icon = self.game_icons[game]
             icon_pos = (
                 icon_rect.x + (icon_rect.width - icon.get_width()) // 2,
                 icon_rect.y + (icon_rect.height - icon.get_height()) // 2,
@@ -2166,9 +2172,8 @@ class AchievementsScreen:
             self.font_small = pygame.font.SysFont(None, 12)
             self.font_sinew = pygame.font.SysFont(None, 20)
 
-        # Load game icons
+        # Initialize empty icon dict (icons loaded on-demand)
         self.game_icons = {}
-        self._load_game_icons()
 
         # Tab system
         self.tabs = ["All"] + GAMES + ["Sinew"]
@@ -2191,19 +2196,26 @@ class AchievementsScreen:
         self._reward_message = None
         self._reward_message_time = 0
 
-    def _load_game_icons(self):
-        """Load game icons for achievement display"""
-        icon_size = 24  # Size for the list icons
+    def _get_game_icon(self, game_name):
+        """Get game icon, loading it lazily if not already cached"""
+        if game_name not in self.game_icons:
+            icon_size = 24  # Size for the list icons
+            filename = self.GAME_ICON_FILES.get(game_name)
+            if filename:
+                icon_path = os.path.join(SPRITES_DIR, "icons", filename)
+                try:
+                    if os.path.exists(icon_path):
+                        icon = pygame.image.load(icon_path).convert_alpha()
+                        icon = pygame.transform.smoothscale(icon, (icon_size, icon_size))
+                        self.game_icons[game_name] = icon
+                except Exception as e:
+                    print(f"[Achievements] Could not load icon for {game_name}: {e}")
+        
+        return self.game_icons.get(game_name)
 
-        for game_name, filename in self.GAME_ICON_FILES.items():
-            icon_path = os.path.join(SPRITES_DIR, "icons", filename)
-            try:
-                if os.path.exists(icon_path):
-                    icon = pygame.image.load(icon_path).convert_alpha()
-                    icon = pygame.transform.smoothscale(icon, (icon_size, icon_size))
-                    self.game_icons[game_name] = icon
-            except Exception as e:
-                print(f"[Achievements] Could not load icon for {game_name}: {e}")
+    def _load_game_icons(self):
+        """Deprecated - icons now loaded lazily via _get_game_icon()"""
+        pass
 
     def _load_achievements(self):
         """Load achievements for the current tab"""
@@ -2533,8 +2545,8 @@ class AchievementsScreen:
                     pygame.draw.rect(surf, (60, 60, 60), icon_rect, border_radius=3)
 
                 # Draw game icon or Sinew "S"
-                if game in self.game_icons:
-                    icon = self.game_icons[game]
+                icon = self._get_game_icon(game)  # Lazy load icon
+                if icon:
                     # Center the icon
                     icon_x = icon_rect.x + (icon_rect.width - icon.get_width()) // 2
                     icon_y = icon_rect.y + (icon_rect.height - icon.get_height()) // 2

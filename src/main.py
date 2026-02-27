@@ -822,13 +822,8 @@ class GameScreen:
         # Load pause combo setting
         self._load_pause_combo_setting()
 
-        # Load saved theme preference
-        try:
-            from theme_manager import load_theme_preference
-
-            load_theme_preference()
-        except Exception as e:
-            print(f"[GameScreen] Could not load theme: {e}")
+        # Theme is already loaded in main() before GameScreen is created
+        # No need to reload it here to avoid duplicate application
 
         # Initialize menu music
         self._init_menu_music()
@@ -2507,7 +2502,8 @@ class GameScreen:
 
     def precache_all(self, screen=None):
         """
-        Pre-load all GIF backgrounds and parse all save files.
+        Pre-load all GIF backgrounds.
+        Save files are loaded lazily when needed (on-demand by SaveDataManager).
         Call this during startup to eliminate lag when switching games.
 
         Args:
@@ -2516,12 +2512,10 @@ class GameScreen:
         if self._precached:
             return
 
-        # Count total items to load
+        # Count total items to load (only GIFs now)
         total_items = 0
         for _, game_data in self.games.items():
             if game_data.get("title_gif"):
-                total_items += 1
-            if game_data.get("sav"):
                 total_items += 1
 
         current_item = 0
@@ -2547,16 +2541,8 @@ class GameScreen:
                     game_data["loaded"] = True
                 current_item += 1
 
-            # Parse save file
-            sav_path = game_data.get("sav")
-            if sav_path and os.path.exists(sav_path):
-                if screen:
-                    self._draw_loading_screen(
-                        screen, f"Loading {gname} save...", current_item, total_items
-                    )
-
-                precache_save(sav_path, game_hint=gname if gname != "Sinew" else None)
-                current_item += 1
+            # Save files are now loaded on-demand by SaveDataManager
+            # when user opens Pokemon/Box screens - eliminates startup delay
 
         self._precached = True
 
