@@ -2842,9 +2842,43 @@ class GameScreen:
             sav_path = self.games[game_name].get("sav")
             if sav_path and os.path.exists(sav_path):
                 manager = get_manager()
+                # Use load_save to ensure we use the CURRENT path from self.games
+                # This is critical for external emu toggle - path may have changed
                 manager.load_save(sav_path, game_hint=game_name)
 
         return True
+
+    def _ensure_current_save_loaded(self):
+        """
+        Ensure SaveDataManager has the current game's save loaded from the correct path.
+        Called before opening modals that display save data (Pokedex, Trainer Info, PC Box).
+        
+        This is critical when external emulator toggle changes - self.games[gname]["sav"]
+        updates to the new path, but SaveDataManager might still have old path cached.
+        """
+        if self.is_on_sinew():
+            return  # Sinew mode doesn't use SaveDataManager
+        
+        gname = self.game_names[self.current_game]
+        sav_path = self.games[gname].get("sav")
+        
+        if sav_path and os.path.exists(sav_path):
+            manager = get_manager()
+            
+            # Check if manager has the CURRENT path loaded
+            # If not (or if path changed), load it
+            if manager.current_save_path != sav_path:
+                print(f"[SaveLoad] Loading save from current location: {sav_path}")
+                manager.load_save(sav_path, game_hint=gname)
+            elif manager.loaded:
+                # Same path, but force reload to get fresh data from disk
+                print(f"[SaveLoad] Reloading save from: {sav_path}")
+                manager.reload()
+        else:
+            # No save file for current game - unload stale data
+            manager = get_manager()
+            if manager.loaded:
+                manager.unload()
 
     def _force_reload_current_save(self):
         """Force reload save file for current game, clearing cache.
@@ -3306,8 +3340,27 @@ class GameScreen:
                     "[ExternalEmu] external_emulator.py not found — external emulator unavailable"
                 )
         
+        # Clear ROM and save caches to force fresh scan of new directories
+        global _rom_scan_cache
+        from config import _save_scan_cache
+        _rom_scan_cache.clear()
+        _save_scan_cache.clear()
+        print("[GameScreen] Cleared ROM and save caches for directory rescan")
+        
         # Re-scan games with the new directories
         self._init_games()
+        
+        # CRITICAL: Force SaveDataManager to reload from NEW save path
+        # After _init_games(), self.games[gname]["sav"] has the new path
+        # But SaveDataManager still has the old path cached - must force reload
+        if not self.is_on_sinew():
+            gname = self.game_names[self.current_game]
+            sav_path = self.games[gname].get("sav")
+            if sav_path and os.path.exists(sav_path):
+                manager = get_manager()
+                # Use load_save (not reload) to switch to the new path
+                manager.load_save(sav_path, game_hint=gname)
+                print(f"[GameScreen] Loaded save from new location: {sav_path}")
         
         # Show completion
         if screen:
@@ -3797,6 +3850,11 @@ class GameScreen:
 
         modal_w = self.width - 30
         modal_h = self.height - 30
+
+        # Ensure current save is loaded from correct path before opening save-dependent modals
+        # This is critical when external emu toggle changes - path may have changed
+        if name in ["Pokedex", "PC Box", "Trainer Info"]:
+            self._ensure_current_save_loaded()
 
         if name == "Pokedex" and PokedexModal:
             # Check if database exists first
