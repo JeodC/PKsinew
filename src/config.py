@@ -303,13 +303,13 @@ def _extract_rom_from_zip(zip_path):
 
 def identify_rom(rom_path, keywords_hint=None):
     """
-    Identify a GBA ROM file and return the canonical game name.
+    Identify a GBA ROM file and return the canonical game name with priority.
     Supports both .gba and .zip files (will extract .gba from zip).
 
-    Detection order:
+    Detection order (priority):
       1. Filename keyword check (fast) - skip non-Pokemon ROMs entirely
-      2. SHA-1 hash  — exact match against known vanilla dumps (all regions)
-      3. Header code — fallback for ROM hacks (inherit base game serial at 0xAC)
+      2. SHA-1 hash  — exact match against known vanilla dumps (PRIORITY 1)
+      3. Header code — fallback for ROM hacks (PRIORITY 2)
 
     Args:
         rom_path: Path to a .gba or .zip file
@@ -317,7 +317,10 @@ def identify_rom(rom_path, keywords_hint=None):
                       (performance optimization - skips hashing non-Pokemon ROMs)
 
     Returns:
-        str: Game name e.g. "Emerald", or None if unrecognised
+        tuple: (game_name, priority) where priority is:
+               1 = Official ROM (hash match)
+               2 = ROM hack (header match)
+               None if unrecognized
     """
     import hashlib
 
@@ -348,21 +351,21 @@ def identify_rom(rom_path, keywords_hint=None):
         print(f"[ROMDetect] Could not read {basename}: {e}")
         return None
 
-    # 1. SHA-1 hash check
+    # 1. SHA-1 hash check (PRIORITY 1 - Official ROM)
     _load_rom_hashes()
     sha1 = hashlib.sha1(rom_data).hexdigest().lower()
     game = _ROM_HASH_LOOKUP.get(sha1)
     if game:
         print(f"[ROMDetect] Hash match: {basename} -> {game} (sha1={sha1[:8]}...)")
-        return game
+        return (game, 1)  # Priority 1 = Official ROM
 
-    # 2. Header code fallback (ROM hacks keep base game serial)
+    # 2. Header code fallback (PRIORITY 2 - ROM hack)
     try:
         code = rom_data[0xAC:0xB0].decode("ascii", errors="replace")
         game = _ROM_HEADER_CODES.get(code)
         if game:
             print(f"[ROMDetect] Header fallback: {basename} serial={code} -> {game} (ROM hack or unknown dump)")
-            return game
+            return (game, 2)  # Priority 2 = ROM hack
     except Exception:
         pass
 

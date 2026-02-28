@@ -300,9 +300,10 @@ GAME_DEFINITIONS = {
 
 
 # Module-level ROM scan cache: populated once per directory on first call.
-# Maps roms_dir -> {rom_path -> game_name | None}
+# Maps roms_dir -> {rom_path -> (game_name, priority) | None}
+# Priority: 1 = Official ROM (hash match), 2 = ROM hack (header match)
 # Avoids re-hashing every .gba file for each of the five game lookups.
-_rom_scan_cache = {}  # roms_dir -> {rom_path -> game_name | None}
+_rom_scan_cache = {}  # roms_dir -> {rom_path -> (game_name, priority) | None}
 
 
 def _build_rom_scan_cache(roms_dir):
@@ -346,6 +347,7 @@ def _build_rom_scan_cache(roms_dir):
 def find_rom_for_game(game_name, roms_dir):
     """
     Search for a ROM file matching the given game name.
+    Prioritizes official ROMs (hash matches) over ROM hacks (header matches).
 
     Detection order:
       1. ROM scan cache (hash + header) - built once per directory
@@ -372,6 +374,8 @@ def find_rom_for_game(game_name, roms_dir):
     _build_rom_scan_cache(roms_dir)
 
     keyword_fallback = None
+    best_match = None  # Track best ROM found (lowest priority number = best)
+    best_priority = 999  # Start with worst priority
 
     for rom_path, detected in _rom_scan_cache[roms_dir].items():
         filename = os.path.basename(rom_path)
@@ -379,17 +383,26 @@ def find_rom_for_game(game_name, roms_dir):
         base_name = os.path.splitext(filename)[0]
 
         # Cache hit - ROM identified by hash/header
-        if detected == game_name:
-            # Try save detection first (content-based)
-            sav_path = find_save_for_game(game_name, SAVES_DIR)
-            # Fallback to filename matching
-            if not sav_path:
-                candidate = os.path.join(SAVES_DIR, base_name + ".sav")
-                if os.path.exists(candidate):
-                    sav_path = candidate
+        if detected and detected[0] == game_name:
+            game, priority = detected
             
-            print(f"[GameScreen] ROM match {game_name}: {filename}")
-            return rom_path, sav_path
+            # If this is better priority than what we have, use it
+            if priority < best_priority:
+                # Try save detection first (content-based)
+                sav_path = find_save_for_game(game_name, SAVES_DIR)
+                # Fallback to filename matching
+                if not sav_path:
+                    candidate = os.path.join(SAVES_DIR, base_name + ".sav")
+                    if os.path.exists(candidate):
+                        sav_path = candidate
+                
+                best_match = (rom_path, sav_path)
+                best_priority = priority
+                
+                # If we found an official ROM (priority 1), we're done
+                if priority == 1:
+                    print(f"[GameScreen] ROM match {game_name}: {filename} (official)")
+                    return rom_path, sav_path
 
         # Keyword fallback for zips and unrecognised .gba files
         if keyword_fallback is None and detected is None:
@@ -406,6 +419,12 @@ def find_rom_for_game(game_name, roms_dir):
                     keyword_fallback = (rom_path, sav_path)
                     break
 
+    # Return best match found (official ROM preferred, then ROM hack, then keyword)
+    if best_match:
+        rom_type = "ROM hack" if best_priority == 2 else "unknown priority"
+        print(f"[GameScreen] ROM match {game_name}: {os.path.basename(best_match[0])} ({rom_type})")
+        return best_match
+    
     if keyword_fallback:
         print(f"[GameScreen] Keyword match {game_name}: {os.path.basename(keyword_fallback[0])}")
         return keyword_fallback
@@ -3260,6 +3279,16 @@ class GameScreen:
 
     def _on_external_emu_toggled(self, enabled):
         """Handle external emulator toggle change (called when user toggles the setting)"""
+        # Show loading screen
+        try:
+            screen = pygame.display.get_surface()
+        except Exception:
+            screen = self._loading_screen
+        
+        if screen:
+            message = "Scanning external ROMs..." if enabled else "Scanning internal ROMs..."
+            self._draw_loading_screen(screen, message, 0, 1)
+        
         # Reinitialize external emulator instance if toggled on
         if enabled and not self.external_emu:
             try:
@@ -3279,6 +3308,11 @@ class GameScreen:
         
         # Re-scan games with the new directories
         self._init_games()
+        
+        # Show completion
+        if screen:
+            self._draw_loading_screen(screen, "Done!", 1, 1)
+            pygame.time.wait(200)  # Brief pause to show completion
         
         # Reload current game if we're not on Sinew
         if not self.is_on_sinew():
