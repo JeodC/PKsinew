@@ -307,13 +307,14 @@ def identify_rom(rom_path, keywords_hint=None):
     Supports both .gba and .zip files (will extract .gba from zip).
 
     Detection order:
-      1. SHA-1 hash  — exact match against known vanilla dumps (all regions)
-      2. Header code — fallback for ROM hacks (inherit base game serial at 0xAC)
+      1. Filename keyword check (fast) - skip non-Pokemon ROMs entirely
+      2. SHA-1 hash  — exact match against known vanilla dumps (all regions)
+      3. Header code — fallback for ROM hacks (inherit base game serial at 0xAC)
 
     Args:
         rom_path: Path to a .gba or .zip file
-        keywords_hint: Optional list of keywords to check before extracting zip
-                      (performance optimization - avoids extracting non-Pokemon ROMs)
+        keywords_hint: Optional list of keywords to check filename
+                      (performance optimization - skips hashing non-Pokemon ROMs)
 
     Returns:
         str: Game name e.g. "Emerald", or None if unrecognised
@@ -321,25 +322,26 @@ def identify_rom(rom_path, keywords_hint=None):
     import hashlib
 
     basename = os.path.basename(rom_path)
+    
+    # OPTIMIZATION: Check filename keywords FIRST (before reading/hashing)
+    # This applies to BOTH .gba and .zip files
+    if keywords_hint:
+        name_lower = basename.lower()
+        has_keyword = any(kw.lower() in name_lower for kw in keywords_hint)
+        if not has_keyword:
+            # Doesn't look like a Pokemon ROM - skip entirely
+            return None
+    
     rom_data = None
 
     try:
         # Handle .zip files
         if rom_path.lower().endswith('.zip'):
-            # OPTIMIZATION: Check filename keywords before extracting
-            # Avoids extracting 100s of non-Pokemon ROMs in mixed folders
-            if keywords_hint:
-                name_lower = basename.lower()
-                has_keyword = any(kw.lower() in name_lower for kw in keywords_hint)
-                if not has_keyword:
-                    # Doesn't look like a Pokemon ROM - skip extraction
-                    return None
-            
             rom_data = _extract_rom_from_zip(rom_path)
             if rom_data is None:
                 return None
         else:
-            # Regular .gba file
+            # Regular .gba file - only read if it passed keyword filter
             with open(rom_path, "rb") as f:
                 rom_data = f.read()
     except Exception as e:

@@ -310,8 +310,8 @@ def _build_rom_scan_cache(roms_dir):
     Scan roms_dir once, identify every .gba and .zip file, cache results.
     No-op if already scanned. Supports multiple directories independently.
     
-    For .zip files, uses keyword pre-filtering to avoid extracting 
-    non-Pokemon ROMs (performance optimization for mixed ROM folders).
+    Uses keyword pre-filtering for BOTH .gba and .zip files to avoid
+    hashing non-Pokemon ROMs (massive performance optimization).
     """
     if roms_dir in _rom_scan_cache:
         return
@@ -335,13 +335,9 @@ def _build_rom_scan_cache(roms_dir):
             continue
         rom_path = os.path.join(roms_dir, filename)
         
-        # For .zip files, pass keywords hint to avoid extracting non-Pokemon ROMs
-        # This prevents extracting 100s of other GBA games in mixed ROM folders
-        if filename.lower().endswith('.zip'):
-            scan[rom_path] = identify_rom(rom_path, keywords_hint=all_keywords)
-        else:
-            # .gba files are always checked (no keyword filter)
-            scan[rom_path] = identify_rom(rom_path)
+        # Pass keywords to identify_rom for ALL files (.gba and .zip)
+        # This skips hashing files that don't match Pokemon keywords (massive speedup)
+        scan[rom_path] = identify_rom(rom_path, keywords_hint=all_keywords)
 
     _rom_scan_cache[roms_dir] = scan
     print(f"[GameScreen] ROM scan complete: {len(scan)} files in {roms_dir}")
@@ -902,9 +898,7 @@ class GameScreen:
         self.emulator_active = False
         self._emulator_pause_combo_released = True  # Track if combo was released
 
-        # External emulator dev mode state
-        self._ext_sav_path = None  # Live save in the external emu's saves folder
-        self._sinew_backup_sav_path = None  # Sinew's own saves/ copy (read by editors)
+        # External emulator state
         self._ext_emu_closed_needs_reload = (
             False  # Set by bg thread; acted on in update()
         )
@@ -3004,97 +2998,30 @@ class GameScreen:
 
     def _launch_external_emulator(self, rom_path, sav_path):
         """
-        Launch via ExternalEmulator.  The provider handles the actual process;
-        we handle save mirroring so Sinew edits flow to the external save dir
-        and in-game saves flow back to Sinew afterwards.
-
-        Save strategy:
-          - sav_path is Sinew's current save (may already point to provider's
-            saves_dir if _init_games found ROMs/saves there).
-          - We push a copy to the provider's saves_dir before launch so the
-            external emulator starts with the latest Sinew edits.
-          - register_ext_mirror() keeps them live-synced while Sinew is open.
-          - A background thread waits for the process to exit then pulls the
-            save back into Sinew's saves/ and reloads the display.
+        Launch via ExternalEmulator.
+        
+        Save strategy (simplified):
+          - sav_path already points to the external emulator's save directory
+            (set by _init_games when external emu toggle is ON)
+          - No copying or mirroring needed - Sinew reads/writes directly to
+            the external save location
+          - External emulator and Sinew both use the same file
         """
-        import shutil
         import threading
 
         provider = self.external_emu.active_provider
-        ext_saves_dir = getattr(provider, "saves_dir", None)
-
-        # --- Resolve the external save path ---
-        ext_sav = None
-        if hasattr(provider, "get_save_path"):
-            ext_sav = provider.get_save_path(rom_path)
-        if not ext_sav and ext_saves_dir:
-            base = (
-                os.path.basename(sav_path)
-                if sav_path
-                else os.path.splitext(os.path.basename(rom_path))[0] + ".sav"
-            )
-            ext_sav = os.path.join(ext_saves_dir, base)
-        if not ext_sav:
-            ext_sav = os.path.splitext(rom_path)[0] + ".sav"  # last resort
-        ext_sav = os.path.abspath(ext_sav)
-
-        # --- Sinew backup path (always in Sinew's own saves/) ---
-        sinew_saves_dir = getattr(
-            config, "SAVES_DIR", os.path.join(os.path.dirname(__file__), "saves")
-        )
-        os.makedirs(sinew_saves_dir, exist_ok=True)
-        sinew_backup = os.path.join(sinew_saves_dir, os.path.basename(ext_sav))
-
-        # --- Push latest Sinew save → external dir before launch ---
-        source = (
-            sav_path
-            if (sav_path and os.path.exists(sav_path))
-            else (sinew_backup if os.path.exists(sinew_backup) else None)
-        )
-        if source and os.path.abspath(source) != ext_sav:
-            try:
-                os.makedirs(os.path.dirname(ext_sav), exist_ok=True)
-                shutil.copy2(source, ext_sav)
-                print(f"[Dev] Pushed save → external: {ext_sav}")
-            except Exception as e:
-                print(f"[Dev] Warning: could not push save: {e}")
-
-        # --- Register mirror: Sinew edits → external save dir ---
-        sinew_edit_path = os.path.abspath(sav_path if sav_path else sinew_backup)
-        if sinew_edit_path != ext_sav:
-            try:
-                from save_writer import register_ext_mirror
-
-                register_ext_mirror(sinew_edit_path, ext_sav)
-                print(
-                    f"[Dev] Mirror: {os.path.basename(sinew_edit_path)} → {os.path.basename(ext_sav)}"
-                )
-            except ImportError:
-                print("[Dev] Warning: save_writer.register_ext_mirror not available")
-
-        self._ext_sav_path = ext_sav
-        self._sinew_backup_sav_path = sinew_backup
 
         print(
-            f"[Dev] Launching {type(provider).__name__} — ROM: {os.path.basename(rom_path)}"
+            f"[ExternalEmu] Launching {type(provider).__name__} — ROM: {os.path.basename(rom_path)}"
         )
-        print(f"[Dev]   External save → {ext_sav}")
-        print(f"[Dev]   Sinew save    → {sinew_edit_path}")
+        if sav_path:
+            print(f"[ExternalEmu]   Save: {sav_path}")
 
-        # --- Launch ---
-        success = self.external_emu.launch(rom_path)
+        # Launch the external emulator
+        success = self.external_emu.launch(rom_path, self.controller)
         if not success:
-            if sinew_edit_path != ext_sav:
-                try:
-                    from save_writer import unregister_ext_mirror
-
-                    unregister_ext_mirror(sinew_edit_path)
-                except ImportError:
-                    pass
-            self._ext_sav_path = None
-            self._sinew_backup_sav_path = None
             print(
-                f"[Dev] External emulator launch failed for {os.path.basename(rom_path)}"
+                f"[ExternalEmu] External emulator launch failed for {os.path.basename(rom_path)}"
             )
             return False
 
@@ -3108,59 +3035,23 @@ class GameScreen:
                 self.external_emu.process.wait()
             except Exception:
                 pass
-            self._on_external_emulator_closed(sinew_edit_path)
+            self._on_external_emulator_closed()
 
         threading.Thread(target=_watch, daemon=True).start()
         self._show_notification(
-            "[Dev] External emulator launched", f"Using {type(provider).__name__}"
+            "[ExternalEmu] Launched", f"Using {type(provider).__name__}"
         )
         return True
 
-    def _on_external_emulator_closed(self, sinew_edit_path):
+    def _on_external_emulator_closed(self):
         """
         Called from a background thread when the external emulator process exits.
-        Pulls the updated save back into Sinew and signals the main thread to reload.
+        Just reload the display - no save copying needed since we're already
+        working with the external save directory.
         """
-        import shutil
-
-        ext_sav = self._ext_sav_path
-        sinew_backup = self._sinew_backup_sav_path
-
-        # Unregister mirror so Sinew edits no longer flow outward
-        if sinew_edit_path and sinew_edit_path != ext_sav:
-            try:
-                from save_writer import unregister_ext_mirror
-
-                unregister_ext_mirror(sinew_edit_path)
-                print(f"[Dev] Mirror unregistered: {os.path.basename(sinew_edit_path)}")
-            except ImportError:
-                pass
-
-        # Pull external save → Sinew backup
-        if ext_sav and sinew_backup and os.path.exists(ext_sav):
-            try:
-                shutil.copy2(ext_sav, sinew_backup)
-                print(f"[Dev] Pulled save → Sinew: {sinew_backup}")
-            except Exception as e:
-                print(f"[Dev] Pull-back failed: {e}")
-
-        # Also update the live sav_path if it differs from the backup
-        if (
-            sinew_edit_path
-            and sinew_backup
-            and os.path.abspath(sinew_edit_path) != os.path.abspath(sinew_backup)
-            and os.path.exists(sinew_backup)
-        ):
-            try:
-                shutil.copy2(sinew_backup, sinew_edit_path)
-            except Exception:
-                pass
-
-        self._ext_sav_path = None
-        self._sinew_backup_sav_path = None
         self.emulator_active = False
         self._ext_emu_closed_needs_reload = True
-        print("[Dev] External emulator closed — save pulled back to Sinew")
+        print("[ExternalEmu] External emulator closed")
 
     def _launch_integrated_emulator(self, rom_path, sav_path):
         """Launch the game using the integrated mGBA emulator"""
