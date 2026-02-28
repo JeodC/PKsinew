@@ -344,7 +344,7 @@ def _build_rom_scan_cache(roms_dir):
     print(f"[GameScreen] ROM scan complete: {len(scan)} files in {roms_dir}")
 
 
-def find_rom_for_game(game_name, roms_dir):
+def find_rom_for_game(game_name, roms_dir, saves_dir):
     """
     Search for a ROM file matching the given game name.
     Prioritizes official ROMs (hash matches) over ROM hacks (header matches).
@@ -356,6 +356,7 @@ def find_rom_for_game(game_name, roms_dir):
     Args:
         game_name: Name of the game (e.g., "FireRed")
         roms_dir: Directory to search for ROMs
+        saves_dir: Directory to search for saves
 
     Returns:
         tuple: (rom_path, save_path) or (None, None) if not found
@@ -389,10 +390,10 @@ def find_rom_for_game(game_name, roms_dir):
             # If this is better priority than what we have, use it
             if priority < best_priority:
                 # Try save detection first (content-based)
-                sav_path = find_save_for_game(game_name, SAVES_DIR)
+                sav_path = find_save_for_game(game_name, saves_dir)
                 # Fallback to filename matching
                 if not sav_path:
-                    candidate = os.path.join(SAVES_DIR, base_name + ".sav")
+                    candidate = os.path.join(saves_dir, base_name + ".sav")
                     if os.path.exists(candidate):
                         sav_path = candidate
                 
@@ -411,9 +412,9 @@ def find_rom_for_game(game_name, roms_dir):
             for keyword in keywords:
                 if keyword.lower() in name_lower:
                     # Also try save detection for keyword matches
-                    sav_path = find_save_for_game(game_name, SAVES_DIR)
+                    sav_path = find_save_for_game(game_name, saves_dir)
                     if not sav_path:
-                        candidate = os.path.join(SAVES_DIR, base_name + ".sav")
+                        candidate = os.path.join(saves_dir, base_name + ".sav")
                         if os.path.exists(candidate):
                             sav_path = candidate
                     keyword_fallback = (rom_path, sav_path)
@@ -511,7 +512,7 @@ def detect_games_with_dirs(roms_dir, saves_dir):
     }
 
     for game_name, game_def in GAME_DEFINITIONS.items():
-        rom_path, sav_path = find_rom_for_game(game_name, roms_dir)
+        rom_path, sav_path = find_rom_for_game(game_name, roms_dir, saves_dir)
 
         # If no ROM was found, still look for a matching save file independently
         if rom_path is None:
