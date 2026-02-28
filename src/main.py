@@ -1002,8 +1002,7 @@ class GameScreen:
             if current_game_name and current_game_name != "Sinew":
                 game_data = self.games.get(current_game_name, {})
                 # Use canonical save path from config as source of truth
-                from config import SAVE_PATHS
-                sav_path = SAVE_PATHS.get(current_game_name, game_data.get("sav"))
+                sav_path = game_data.get("sav")
 
                 if sav_path and os.path.exists(sav_path):
                     try:
