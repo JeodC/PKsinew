@@ -21,6 +21,8 @@ class RocknixProvider(EmulatorProvider):
     def __init__(self, sinew_settings):
         self.settings = sinew_settings
         
+        self.system_db = os.path.expanduser("~/.config/system/configs/system.cfg")
+        self.es_systems_db = os.path.expanduser("~/.emulationstation/es_systems.cfg")
         self.retroarch_cfg = os.path.expanduser("~/.config/retroarch/retroarch.cfg")
         self.roms_dir = os.path.expanduser("~/roms/gba")
         
@@ -82,17 +84,18 @@ class RocknixProvider(EmulatorProvider):
             return None
 
         # Resolve Core/Emu
-        if core == "auto":
-            selected_core = self.cache.get("gba_core")
-            selected_emu = self.cache.get("gba_emulator")
-            
-            if not selected_core or not selected_emu:
-                selected_core, selected_emu = self._resolve_gba_config()
-                self._update_sinew_cache("gba_core", selected_core)
-                self._update_sinew_cache("gba_emulator", selected_emu)
+        parsed_core, parsed_emu = self._resolve_gba_config()
+        if parsed_core:
+            selected_core = parsed_core
+            self._update_sinew_cache("gba_core", parsed_core)
         else:
-            selected_core = core
-            selected_emu = "retroarch"
+            selected_core = self.cache.get("gba_core")
+
+        if parsed_emu:
+            selected_emu = parsed_emu
+            self._update_sinew_cache("gba_emulator", parsed_emu)
+        else:
+            selected_emu = self.cache.get("gba_emulator")
 
         controller_str = f" -p1index 0 -p1guid {guid} "
 
@@ -130,22 +133,74 @@ class RocknixProvider(EmulatorProvider):
         return None
 
     def _resolve_gba_config(self):
-        paths = ["/storage/.emulationstation/es_systems.cfg", "/etc/emulationstation/es_systems.cfg"]
-        for path in paths:
-            if not os.path.exists(path):
-                continue
+        """Resolve the GBA core/emulator"""
+        core = None
+        emu = None
+        print(f"[RocknixProvider] Resolving GBA config from {self.system_db}")
+        if os.path.exists(self.system_db):
             try:
-                tree = ET.parse(path)
-                for system in tree.getroot().findall('system'):
-                    if system.find('name').text == 'gba':
-                        for emu in system.findall('.//emulator'):
-                            emu_name = emu.get('name')
-                            for core in emu.findall('.//core'):
-                                if core.get('default') == 'true':
-                                    return core.text, emu_name
+                with open(self.system_db, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip()
+                        if k == "gba.core":
+                            core = v
+                            print(f"[RocknixProvider] Found system.cfg core: {core}")
+                        elif k == "gba.emulator":
+                            emu = v
+                            print(f"[RocknixProvider] Found system.cfg emulator: {emu}")
             except Exception as e:
-                print(f"[RocknixProvider] EXCEPTION parsing system config: {e}")
-        return "mgba", "retroarch"
+                print(f"[RocknixProvider] EXCEPTION reading system.cfg: {e}")
+
+        if core and emu:
+            print(f"[RocknixProvider] Using system.cfg config: {core}/{emu}")
+            return core, emu
+        elif core:
+            print(f"[RocknixProvider] Using system.cfg core with fallback emulator: {core}/retroarch")
+            return core, "retroarch"
+
+        # Fallback to ES defaults
+        print("[RocknixProvider] Falling back to ES defaults")
+        result = self._resolve_es_default()
+        if result is None:
+            print("[RocknixProvider] ERROR: No GBA core/emulator defined, cannot launch.")
+            return None, None
+        print(f"[RocknixProvider] Using ES default config: {result[0]}/{result[1]}")
+        return result
+
+
+    def _resolve_es_default(self):
+        """Fallback for GBA if system.cfg has no core/emulator defined."""
+
+        if not os.path.exists(self.es_systems_db):
+            print(f"[RocknixProvider] ES config not found: {self.es_systems_db}")
+            return None
+        try:
+            print(f"[RocknixProvider] Parsing ES config: {self.es_systems_db}")
+            tree = ET.parse(self.es_systems_db)
+            for system in tree.getroot().findall("system"):
+                name_node = system.find("name")
+                if name_node is None:
+                    continue
+                if name_node.text.lower() != "gba":
+                    continue
+                print(f"[RocknixProvider] Found GBA system in {self.es_systems_db}")
+                for emu in system.findall(".//emulator"):
+                    emu_name = emu.get("name")
+                    for core in emu.findall(".//core"):
+                        if core.get("default") == "true":
+                            print(f"[RocknixProvider] Found default core: {core.text}, emulator: {emu_name}")
+                            return core.text, emu_name
+        except Exception as e:
+            print(f"[RocknixProvider] EXCEPTION parsing ES config {self.es_systems_db}: {e}")
+
+        # No valid core/emulator found
+        print("[RocknixProvider] No default GBA core/emulator found in ES configs")
+        return None
 
     def _update_sinew_cache(self, key, value):
         """Helper to update persistent settings only when changed."""
