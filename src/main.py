@@ -40,7 +40,6 @@ if sys.platform == 'linux' and _platform.machine().lower() in ('aarch64', 'arm64
 import pygame
 from PIL import Image, ImageSequence
 
-import config
 import ui_colors
 from config import (
     CORES_DIR,
@@ -51,12 +50,13 @@ from config import (
     MGBA_CORE_PATH,
     ROMS_DIR,
     SAVES_DIR,
+    SAVE_PATHS,
     SETTINGS_FILE,
     SPRITES_DIR,
     SYSTEM_DIR,
     identify_rom,
 )
-from save_data_manager import get_manager, precache_save
+from save_data_manager import get_manager
 from ui_components import Button
 
 # =============================================================================
@@ -1512,8 +1512,10 @@ class GameScreen:
             # Only fall back to config SAVE_PATHS if that path is missing.
             actual_path = sav_path
             if not actual_path or not os.path.exists(actual_path):
-                from config import SAVE_PATHS
+                print(f"[Achievements] No save found at {sav_path} for {game_name}, checking config paths")
                 actual_path = SAVE_PATHS.get(game_name, "")
+            else:
+                print(f"[Achievements] Found save for {game_name} at {actual_path}")
             if not actual_path or not os.path.exists(actual_path):
                 print(f"[Achievements] No save found for {game_name}")
                 return None
@@ -1599,18 +1601,23 @@ class GameScreen:
                     continue
                 sav_path = game_data.get("sav")
                 if not sav_path or not os.path.exists(sav_path):
+                    print(f"[Achievements] No save found for {game_name} at {sav_path}, checking config paths")
                     # Also check config canonical path
                     from config import SAVE_PATHS
                     sav_path = SAVE_PATHS.get(game_name, "")
+                    print(f"[Achievements] Config path for {game_name}: {sav_path}")
                     if not sav_path or not os.path.exists(sav_path):
+                        print(f"[Achievements] Skipping {game_name}: no valid save path")
                         continue
 
                 is_current = (game_name == current_game_name)
                 not_cached = (game_name not in self._sinew_game_data_cache)
 
                 if is_current or not_cached:
+                    print(f"[Achievements] Parsing {game_name} for Sinew aggregate (current={is_current}, not_cached={not_cached})")
                     contribution = _parse_game_for_cache(game_name, sav_path)
                     if contribution is not None:
+                        print(f"[Achievements] Caching contribution for {game_name}: badges={contribution['badges']}, dex={contribution['dex_caught']}, pc={contribution['pc_count']}, shiny={contribution['shiny_count']}")
                         self._sinew_game_data_cache[game_name] = contribution
                 # else: silently use existing cached values
 
