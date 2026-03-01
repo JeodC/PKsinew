@@ -14,6 +14,7 @@ Button Mapping (Xbox-style, adaptable):
 
 Auto-Detection:
 When a controller is connected, the system will:
+0. (Handheld only) Use SDL_GAMECONTROLLERCONFIG from PortMaster if set
 1. Check for a saved per-controller profile (keyed by controller name)
 2. Match against the built-in known controller database
 3. Fall back to legacy flat mapping from settings
@@ -21,10 +22,11 @@ When a controller is connected, the system will:
 """
 
 from enum import IntEnum
+import os
 
 import pygame
 
-from config import SETTINGS_FILE
+from config import IS_HANDHELD, SETTINGS_FILE
 
 
 class ControllerButton(IntEnum):
@@ -234,8 +236,9 @@ class ControllerManager:
         """
         Auto-detect and apply the correct button mapping for a controller.
 
-        Uses the controller_profiles module to resolve the best mapping based on:
-        1. Saved per-controller profile
+        Priority order:
+        0. SDL_GAMECONTROLLERCONFIG env var (handheld only — set by PortMaster)
+        1. Saved per-controller profile (keyed by controller name)
         2. Built-in known controller database
         3. Legacy flat mapping from settings
         4. Xbox-style default
@@ -243,6 +246,19 @@ class ControllerManager:
         Args:
             joy: pygame.joystick.Joystick instance
         """
+        # --- Priority 0: SDL_GAMECONTROLLERCONFIG (handheld only) ---
+        # PortMaster sets this env var with the exact mapping for the device.
+        # It's the most authoritative source on handhelds — skip everything
+        # else if it works.
+        if IS_HANDHELD:
+            sdl_config = os.environ.get("SDL_GAMECONTROLLERCONFIG", "").strip()
+            if sdl_config:
+                applied = self._apply_sdl_controller_config(sdl_config, joy)
+                if applied:
+                    self._store_originals_and_swap()
+                    return
+
+        # --- Priority 1-4: Profile database / heuristic / default ---
         try:
             from controller_profiles import resolve_mapping, save_controller_profile
         except ImportError:
@@ -337,6 +353,173 @@ class ControllerManager:
                 save_controller_profile(name, mapping, self.active_profile_id, guid)
 
         self._store_originals_and_swap()
+
+    def _apply_sdl_controller_config(self, config_string, joy):
+        """Parse SDL_GAMECONTROLLERCONFIG and apply to Sinew's button_map.
+
+        PortMaster sources control.txt and sets SDL_GAMECONTROLLERCONFIG with
+        the exact mapping for the device. This is the same env var that the
+        emulator uses (mgba_emulator._apply_sdl_controller_config), but here
+        we map to Sinew UI button names instead of libretro IDs.
+
+        SDL format (one or more newline-separated entries):
+            GUID,Name,a:b0,b:b1,back:b8,start:b9,leftshoulder:b4,...
+
+        Args:
+            config_string: The SDL_GAMECONTROLLERCONFIG value
+            joy: pygame.joystick.Joystick instance (for name matching)
+
+        Returns:
+            True if at least one button was successfully mapped
+        """
+        # SDL logical name -> Sinew button_map key
+        sdl_to_sinew = {
+            "a":             "A",
+            "b":             "B",
+            "x":             "X",
+            "y":             "Y",
+            "start":         "START",
+            "back":          "SELECT",  # SDL calls Select "back"
+            "leftshoulder":  "L",
+            "rightshoulder": "R",
+        }
+
+        # SDL d-pad logical names -> direction strings
+        sdl_dpad_names = {
+            "dpup":    "up",
+            "dpdown":  "down",
+            "dpleft":  "left",
+            "dpright": "right",
+        }
+
+        our_name = joy.get_name().lower()
+
+        # Find the best matching entry for our controller
+        lines = [l.strip() for l in config_string.splitlines()
+                 if l.strip() and not l.strip().startswith("#")]
+
+        best_entry = None
+        for line in lines:
+            parts = line.split(",", 2)
+            if len(parts) < 3:
+                continue
+            entry_name = parts[1].lower()
+            if entry_name in our_name or our_name in entry_name:
+                best_entry = line
+                break
+
+        # If no name match, use the only entry (common case — one mapping per device)
+        if best_entry is None and len(lines) == 1:
+            best_entry = lines[0]
+
+        if best_entry is None:
+            print("[Controller] SDL_GAMECONTROLLERCONFIG set but no matching entry found")
+            return False
+
+        mapped_count = 0
+        dpad_buttons = {}
+        dpad_axes = set()
+        parts = best_entry.split(",")
+
+        for part in parts[2:]:  # skip GUID and name fields
+            part = part.strip()
+            if ":" not in part:
+                continue
+            key, val = part.split(":", 1)
+            key = key.strip()
+            val = val.strip().rstrip(",")
+
+            # --- Face / shoulder / start / select buttons ---
+            if key in sdl_to_sinew and val.startswith("b"):
+                try:
+                    btn_idx = int(val[1:])
+                    sinew_name = sdl_to_sinew[key]
+                    self.button_map[sinew_name] = [btn_idx]
+                    mapped_count += 1
+                except ValueError:
+                    pass
+
+            # --- D-pad: button-based (e.g. dpup:b11) ---
+            elif key in sdl_dpad_names and val.startswith("b"):
+                try:
+                    btn_idx = int(val[1:])
+                    direction = sdl_dpad_names[key]
+                    dpad_buttons[direction] = [btn_idx]
+                    mapped_count += 1
+                except ValueError:
+                    pass
+
+            # --- D-pad: hat-based (e.g. dpup:h0.1) ---
+            elif key in sdl_dpad_names and val.startswith("h"):
+                # Hat-based d-pad is already handled by our default hat_map,
+                # so we just need to make sure the hat_map directions are correct.
+                # SDL hat masks: 1=up, 4=down, 8=left, 2=right
+                try:
+                    hat_part = val[1:]
+                    _hat_idx, mask_str = hat_part.split(".")
+                    mask = int(mask_str)
+                    direction = sdl_dpad_names[key]
+                    # Rebuild hat_map from SDL masks
+                    hat_mask_to_tuple = {
+                        1: (0, 1),    # up
+                        4: (0, -1),   # down
+                        8: (-1, 0),   # left
+                        2: (1, 0),    # right
+                    }
+                    if mask in hat_mask_to_tuple:
+                        hat_tuple = hat_mask_to_tuple[mask]
+                        self.hat_map[hat_tuple] = direction
+                        mapped_count += 1
+                except (ValueError, KeyError):
+                    pass
+
+            # --- D-pad: axis-based (e.g. dpup:-a1, dpdown:+a1) ---
+            elif key in sdl_dpad_names and "a" in val:
+                try:
+                    axis_str = val.lstrip("+-").lstrip("a").rstrip("~")
+                    axis_idx = int(axis_str)
+                    direction = sdl_dpad_names[key]
+                    # Figure out axis pair: horizontal dirs use x, vertical use y
+                    if direction in ("left", "right"):
+                        pair_y = axis_idx + 1 if axis_idx % 2 == 0 else axis_idx
+                        dpad_axes.add((axis_idx, pair_y))
+                    else:
+                        pair_x = axis_idx - 1 if axis_idx % 2 == 1 else axis_idx
+                        dpad_axes.add((pair_x, axis_idx))
+                    mapped_count += 1
+                except ValueError:
+                    pass
+
+        # Apply d-pad config
+        if dpad_buttons:
+            for direction in ["up", "down", "left", "right"]:
+                if direction in dpad_buttons:
+                    self.dpad_button_map[direction] = dpad_buttons[direction]
+            print(f"[Controller] SDL config d-pad buttons: {self.dpad_button_map}")
+
+        if dpad_axes:
+            self.dpad_axis_pairs = list(dpad_axes)
+            print(f"[Controller] SDL config d-pad axes: {self.dpad_axis_pairs}")
+
+        if mapped_count > 0:
+            # Capture originals from what SDL told us
+            self._original_a = self.button_map["A"][:]
+            self._original_b = self.button_map["B"][:]
+
+            self.active_profile_id = "sdl_config"
+            self.active_profile_description = "SDL_GAMECONTROLLERCONFIG"
+            self.active_profile_match_type = "sdl_env"
+
+            print(
+                f"[Controller] SDL_GAMECONTROLLERCONFIG applied ({mapped_count} bindings): "
+                f"A={self.button_map['A']}, B={self.button_map['B']}, "
+                f"L={self.button_map['L']}, R={self.button_map['R']}, "
+                f"SEL={self.button_map['SELECT']}, STA={self.button_map['START']}"
+            )
+            return True
+
+        print("[Controller] SDL_GAMECONTROLLERCONFIG present but no bindings parsed")
+        return False
 
     def refresh_controller_config(self):
         """
