@@ -1469,7 +1469,7 @@ class MgbaEmulator:
             if self._audio_channel:
                 self._apply_channel_volume()
                 print(
-                    f"[MgbaEmulator] Audio channel reserved: {self._audio_channel}, "
+                    f"[MgbaEmulator] Audio channel reserved, "
                     f"volume: {self._get_effective_volume():.2f}"
                 )
             else:

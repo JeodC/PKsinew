@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 """
-Fetch Gen3 sprites (normal + shiny), item sprites (Poké Ball, Master Ball, Eggs),
-and metadata (description, abilities, egg groups, evolution chain, forms, types, stats, height, weight).
-Only downloads missing files and metadata.
-Saves everything under data/ with separate folders.
+DBbuilder.py — Fetches Gen 3 sprites, item sprites, and metadata from online sources.
+
+Downloads only missing files. Saves everything under data/ with separate folders.
+Covers: normal + shiny sprites, item sprites, descriptions, abilities, egg groups,
+evolution chains, forms, types, stats, height, and weight.
 """
 
 import json

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""
-external_emulator.py
 
-    If the user does not wish to use the built-in mgba libretro core, they can opt to use their external emulator.
-    This script handles the launch skeleton, while providers are collected from the providers folder. For example,
-    the SBC handheld firmware ROCKNIX has its own launch control method, which is performed in providers/rocknix.py.
-    
-    More providers can be added in this way, simply by creating a new provider.py file.
+"""
+external_emulator.py — Launch skeleton for external emulator support.
+
+Used when the built-in mGBA libretro core is disabled. Providers in the
+providers/ folder handle platform-specific launch logic (e.g. providers/rocknix.py
+for ROCKNIX firmware). New platforms can be supported by adding a provider file.
 """
 
 import os

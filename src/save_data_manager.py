@@ -160,8 +160,9 @@ class SaveDataManager:
         Returns:
             bool: True if successful
         """
-        if not os.path.exists(save_path):
-            print(f"Save file not found: {save_path}")
+        if save_path is None or not os.path.exists(save_path):
+            if save_path is not None:
+                print(f"Save file not found: {save_path}")
             return False
 
         try:

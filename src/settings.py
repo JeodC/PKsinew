@@ -20,10 +20,6 @@ from config import (
     VOLUME_DEFAULT, VOLUME_MIN, VOLUME_MAX, VOLUME_STEP,
 )
 
-# Debug: Show settings path at import time
-print(f"[Settings] Using settings file: {SETTINGS_FILE}")
-print(f"[Settings] EXT_DIR: {EXT_DIR}")
-
 # Use the same ARM detection as the emulator so slider defaults match
 # the actual values _init_audio will use.
 try:
@@ -63,6 +59,23 @@ def save_sinew_settings(data):
         print(f"[Settings] Saved to: {SETTINGS_FILE}")
     except Exception as e:
         print(f"[Settings] Failed to save settings to {SETTINGS_FILE}: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def save_sinew_settings_merged(data):
+    """Load existing settings, merge *data* into them, then write back.
+
+    Unlike save_sinew_settings() which overwrites the entire file, this
+    preserves any keys that are not present in *data* — useful when a
+    mixin or modal only wants to persist a subset of settings.
+    """
+    try:
+        existing = load_sinew_settings()
+        existing.update(data)
+        save_sinew_settings(existing)
+    except Exception as e:
+        print(f"[Settings] Failed to merge-save settings: {e}")
         import traceback
         traceback.print_exc()
 
