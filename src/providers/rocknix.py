@@ -9,6 +9,7 @@ import subprocess
 import signal
 import shlex
 import xml.etree.ElementTree as ET
+import pygame
 from external_emulator import EmulatorProvider
 from settings import save_sinew_settings
 
@@ -75,10 +76,10 @@ class RocknixProvider(EmulatorProvider):
         to launch the emulator.
         """
 
-        # Controller GUID
+        # Controller GUID — read directly from the joystick pygame already has open.
         guid = self.cache.get("p1_guid")
         if not guid:
-            guid = self._get_last_input_guid()
+            guid = self._get_joystick_guid()
             if guid:
                 self._update_sinew_cache("p1_guid", guid)
 
@@ -105,19 +106,15 @@ class RocknixProvider(EmulatorProvider):
         emu_cmd = f"/usr/bin/runemu.sh {shlex.quote(rom_path)} -Pgba --core={selected_core} --emulator={selected_emu} --controllers={shlex.quote(controller_str)}"  # pylint: disable=line-too-long  # noqa: E501
         return ["sh", "-c", emu_cmd]
 
-    def _get_last_input_guid(self):
-        path = os.path.expanduser("~/.emulationstation/es_last_input.cfg")
-        if not os.path.exists(path):
-            return None
+    def _get_joystick_guid(self):
+        """Return the SDL GUID of the first joystick pygame currently has open."""
         try:
-            tree = ET.parse(path)
-            node = tree.getroot().find('inputConfig')
-            if node is not None:
-                return node.get('deviceGUID')
-            else:
-                return None
-        except Exception:
-            return None
+            if pygame.joystick.get_count() > 0:
+                joy = pygame.joystick.Joystick(0)
+                return joy.get_guid()
+        except Exception as e:
+            print(f"[RocknixProvider] Could not read joystick GUID: {e}")
+        return None
 
     def _get_retroarch_setting(self, setting_key):
         if not os.path.exists(self.retroarch_cfg):
