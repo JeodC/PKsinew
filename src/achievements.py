@@ -2221,9 +2221,6 @@ class AchievementsScreen:
         """Load achievements for the current tab"""
         from achievements_data import GAMES, get_achievements_for
 
-        # Debug: show any achievements that appear stuck (progress >= required but not unlocked)
-        self.manager.debug_stuck_achievements()
-
         # Force check achievements against current tracking values
         # This catches any that should be unlocked but weren't
         self.manager.force_check_by_tracking()

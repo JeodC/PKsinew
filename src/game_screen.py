@@ -289,15 +289,17 @@ class GameScreen(
         if self.emulator_active and self.emulator:
             return self._update_emulator(events, dt)
 
-        # [Dev] External emulator closed — reload on the main thread.
+        # External emulator closed — reload on the main thread.
         if self._ext_emu_closed_needs_reload:
             self._ext_emu_closed_needs_reload = False
             if self.scaler:
                 self.scaler.restore_virtual_resolution()
             self._reload_settings_from_disk()
             self.load_game_and_background()
+            self._force_reload_current_save()
+            self._check_achievements_for_current_game()
             self._start_menu_music()
-            print("[Dev] Reloaded save after external emulator closed")
+            print("[Sinew] Returned from external emulator")
 
         # Check for resume combo when emulator is paused but we're in Sinew menu
         self._pause_combo_active = False
