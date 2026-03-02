@@ -117,14 +117,27 @@ def run():
         # While an emulator provider is running, just idle
         if game_screen.emulator_manager and game_screen.emulator_manager.is_running:
             pygame.time.wait(500)
-            if not game_screen.emulator_manager.is_running:
-                pygame.display.flip()
+            # On dual-screen systems (AYN Thor), display is iconified not quit
+            # Only try to flip if display still exists (dual-screen case)
+            try:
+                if not game_screen.emulator_manager.is_running and pygame.display.get_surface():
+                    pygame.display.flip()
+            except pygame.error:
+                # Display was quit for single-screen external emulator
+                pass
             continue
 
         # Handheld: reinitialise display if it was lost
-        if IS_HANDHELD and not pygame.display.get_surface():
-            scaler.reinit_display()
-            controller.resume()
+        if IS_HANDHELD:
+            try:
+                surf = pygame.display.get_surface()
+                if not surf:
+                    scaler.reinit_display()
+                    controller.resume()
+            except pygame.error:
+                # Display was quit for external emulator, reinit when it returns
+                scaler.reinit_display()
+                controller.resume()
 
         dt = clock.tick(60)
         events = pygame.event.get()
