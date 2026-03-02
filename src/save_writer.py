@@ -14,7 +14,7 @@ from datetime import datetime
 # EXTERNAL EMULATOR MIRROR REGISTRY
 # =============================================================================
 # Maps  sinew_save_path  →  ext_save_path
-# When external emulator dev mode is active, _launch_external_emulator in
+# When emulator provider mode is active, _launch_via_provider in
 # main.py registers a mapping here. Every write_save_file call that targets a
 # registered sinew path will also write the same data to the external emulator's
 # save path, keeping it in sync with every Sinew edit without requiring a

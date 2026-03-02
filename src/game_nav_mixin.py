@@ -259,26 +259,24 @@ class GameNavMixin:
         # Use a module-level reference so callers importing GAMES see the update
         import game_detection as _gd
 
-        use_external = getattr(builtins, "SINEW_USE_EXTERNAL_EMULATOR", False)
-
         roms_dir = ROMS_DIR
         saves_dir = SAVES_DIR
 
         if (
-            use_external
-            and self.external_emu
-            and self.external_emu.active_provider
+            self.emulator_manager
+            and self.emulator_manager.active_provider
+            and not getattr(self.emulator_manager.active_provider, "is_integrated", False)
         ):
-            provider = self.external_emu.active_provider
+            provider = self.emulator_manager.active_provider
             ext_roms_dir = getattr(provider, "roms_dir", None)
             ext_saves_dir = getattr(provider, "saves_dir", None)
 
             if ext_roms_dir:
                 roms_dir = ext_roms_dir
-                print(f"[ExternalEmu] Scanning external ROMs: {roms_dir}")
+                print(f"[EmulatorManager] Scanning external ROMs: {roms_dir}")
             if ext_saves_dir:
                 saves_dir = ext_saves_dir
-                print(f"[ExternalEmu] Scanning external saves: {saves_dir}")
+                print(f"[EmulatorManager] Scanning external saves: {saves_dir}")
 
         _gd.GAMES = detect_games_with_dirs(roms_dir, saves_dir)
 

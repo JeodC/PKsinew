@@ -82,10 +82,10 @@ def run():
 
     running = True
     while running:
-        # While an external emulator is running, just idle
-        if game_screen.external_emu and game_screen.external_emu.is_running:
+        # While an emulator provider is running, just idle
+        if game_screen.emulator_manager and game_screen.emulator_manager.is_running:
             pygame.time.wait(500)
-            if not game_screen.external_emu.is_running:
+            if not game_screen.emulator_manager.is_running:
                 pygame.display.flip()
             continue
 
@@ -130,8 +130,8 @@ def run():
         game_screen.draw(screen)
         scaler.blit_scaled()
 
-        game_screen.dim_screen(180 if (game_screen.external_emu
-            and game_screen.external_emu.is_running) else 0)
+        game_screen.dim_screen(180 if (game_screen.emulator_manager
+            and game_screen.emulator_manager.is_running) else 0)
 
     game_screen.cleanup()
     pygame.quit()

@@ -37,10 +37,9 @@ class SettingsApplyMixin:
         # Update emulator mapping if active (both gamepad and keyboard maps)
         if self.emulator:
             try:
-                from mgba_emulator import (
-                    RETRO_DEVICE_ID_JOYPAD_A,
-                    RETRO_DEVICE_ID_JOYPAD_B,
-                )
+                # Libretro joypad constants (stable; no import needed)
+                RETRO_DEVICE_ID_JOYPAD_A = 8
+                RETRO_DEVICE_ID_JOYPAD_B = 0
 
                 # --- Gamepad button map ---
                 gmap = getattr(self.emulator, "_gamepad_map", None)
@@ -113,9 +112,9 @@ class SettingsApplyMixin:
             # Reapply settings that affect current state
             self._menu_music_muted = self.settings.get("mute_menu_music", False)
 
-            use_external = self.settings.get("use_external_emulator", False)
-            if hasattr(builtins, "SINEW_USE_EXTERNAL_EMULATOR"):
-                builtins.SINEW_USE_EXTERNAL_EMULATOR = use_external
+            use_external = self.settings.get("use_emulator_provider", False)
+            if hasattr(builtins, "SINEW_USE_EMULATOR_PROVIDER"):
+                builtins.SINEW_USE_EMULATOR_PROVIDER = use_external
 
             dev_mode = self.settings.get("dev_mode", False)
             if hasattr(builtins, "SINEW_DEV_MODE"):
@@ -129,10 +128,9 @@ class SettingsApplyMixin:
             # Also update emulator mapping if emulator is loaded
             if self.emulator:
                 try:
-                    from mgba_emulator import (
-                        RETRO_DEVICE_ID_JOYPAD_A,
-                        RETRO_DEVICE_ID_JOYPAD_B,
-                    )
+                    # Libretro joypad constants (stable; no import needed)
+                    RETRO_DEVICE_ID_JOYPAD_A = 8
+                    RETRO_DEVICE_ID_JOYPAD_B = 0
 
                     gmap = getattr(self.emulator, "_gamepad_map", None)
                     if gmap is not None:
@@ -149,7 +147,7 @@ class SettingsApplyMixin:
             print(
                 f"[Sinew] Applied settings:"
                 f" music_muted={self._menu_music_muted},"
-                f" external_emu={use_external}, swap_ab={swap_ab}"
+                f" emulator_provider={use_external}, swap_ab={swap_ab}"
             )
 
         except Exception as e:

@@ -166,7 +166,7 @@ class ModalLauncherMixin:
                 db_builder_callback=self._open_db_builder,
                 scaler=self.scaler,
                 reload_combo_callback=self._reload_pause_combo_setting,
-                external_emu_toggle_callback=self._on_external_emu_toggled,
+                emulator_provider_callback=self._on_emulator_provider_toggled,
             )
         elif name == "Export" and ExportModal:
             current_game = self.get_current_game_name()

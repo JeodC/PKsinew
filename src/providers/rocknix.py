@@ -10,7 +10,7 @@ import signal
 import shlex
 import xml.etree.ElementTree as ET
 import pygame
-from external_emulator import EmulatorProvider
+from emulator_manager import EmulatorProvider
 from settings import save_sinew_settings
 
 class RocknixProvider(EmulatorProvider):

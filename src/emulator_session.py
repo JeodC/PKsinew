@@ -4,27 +4,21 @@
 emulator_session.py - Game session lifecycle mixin for GameScreen
 
 Orchestrates the full lifecycle of launching, running, pausing, and stopping
-a game session from Sinew's perspective.  Two backends are supported:
-
-  Integrated  — MgbaEmulator  (mgba_emulator.py)
-                libretro/mGBA core running inside the Sinew process.
-
-  External    — ExternalEmulator  (external_emulator.py)
-                A provider-based launcher that hands off to a system emulator
-                and watches the process for exit.
+a game session from Sinew's perspective.  All emulator backend logic is
+encapsulated in providers (providers/).  This mixin only handles session
+bookkeeping: ROM resolution, provider dispatch, process watching, and UI.
 
 Entry points called by GameScreen.update() / menu handlers:
-  _launch_game()             — decide which backend to use and start a session
+  _launch_game()             — resolve ROM path and dispatch to active provider
   _stop_emulator()           — save SRAM, unload, return to Sinew menu
-  _update_emulator()         — per-frame tick while a session is active
-  _draw_emulator()           — render the emulator surface (integrated only)
+  _update_emulator()         — per-frame tick while an in-process session is active
+  _draw_emulator()           — render the emulator surface (in-process providers only)
 
 Supporting methods:
-  _launch_integrated_emulator()   — initialise + load ROM into MgbaEmulator
-  _launch_external_emulator()     — hand off to ExternalEmulator provider
-  _on_external_emulator_closed()  — background-thread callback on process exit
-  _on_external_emu_toggled()      — rebuild game list when toggle changes
-  _show_return_loading_screen()   — brief "Returning to Sinew…" splash
+  _launch_via_provider()          — unified dispatch through EmulatorManager
+  _on_emulator_provider_closed()  — background-thread callback on process exit
+  _on_emulator_provider_toggled() — rebuild game list when toggle changes
+  _show_return_loading_screen()   — brief "Returning to Sinew..." splash
 """
 
 import builtins
@@ -36,13 +30,9 @@ from datetime import datetime
 import pygame
 
 from config import (
-    CORES_DIR,
     DATA_DIR,
     FONT_PATH,
-    MGBA_CORE_PATH,
     ROMS_DIR,
-    SAVES_DIR,
-    SYSTEM_DIR,
 )
 from game_detection import (
     GAME_SAVE_ONLY,
@@ -50,22 +40,15 @@ from game_detection import (
 )
 from save_data_manager import get_manager
 
-try:
-    from mgba_emulator import MgbaEmulator
-    EMULATOR_AVAILABLE = True
-except ImportError:
-    MgbaEmulator = None
-    EMULATOR_AVAILABLE = False
-
 
 class EmulatorSessionMixin:
     """
     Mixin providing game session lifecycle management for GameScreen.
 
     Expects the host class to have (among others):
-        self.emulator              MgbaEmulator | None
+        self.emulator              emulator instance | None
         self.emulator_active       bool
-        self.external_emu          ExternalEmulator | None
+        self.emulator_manager       EmulatorManager | None
         self.scaler                scaler object | None
         self.controller            controller object | None
         self.settings              dict
@@ -119,66 +102,62 @@ class EmulatorSessionMixin:
                 print(f"ROM not found: {rom_path}")
             return
 
-        use_external = getattr(builtins, "SINEW_USE_EXTERNAL_EMULATOR", False)
+        # Dispatch through the provider system.
+        # Providers are probed in registration order; IntegratedMgbaProvider
+        # is the guaranteed last-resort fallback when present.
+        if not self.emulator_manager or not self.emulator_manager.active_provider:
+            print("[Sinew] No emulator provider available.")
+            return
 
-        if (
-            use_external
-            and self.external_emu
-            and self.external_emu.active_provider
-        ):
-            if self._launch_external_emulator(rom_path, sav_path):
-                return
-            print("[ExternalEmu] External emulator failed — falling back to integrated mGBA")
-
-        if EMULATOR_AVAILABLE and MgbaEmulator:
-            try:
-                self._launch_integrated_emulator(rom_path, sav_path)
-            except Exception as e:
-                print(f"Integrated emulator failed: {e}")
-                print("No compatible emulator core found for this platform.")
+        if not self._launch_via_provider(rom_path, sav_path):
+            print("[Sinew] All providers failed — no emulator available.")
 
     # ------------------------------------------------------------------
     # External backend
     # ------------------------------------------------------------------
 
-    def _launch_external_emulator(self, rom_path, sav_path):
+    def _launch_via_provider(self, rom_path, sav_path):
         """
-        Launch via ExternalEmulator provider.
+        Dispatch a launch through the active EmulatorManager provider.
 
-        Save strategy: sav_path already points to the external emulator's save
-        directory (set by _init_games when the external-emu toggle is ON).
-        No copying needed — Sinew and the external emulator share the same file.
+        Works for both in-process providers (is_integrated=True, e.g. mGBA)
+        and subprocess providers (is_integrated=False, e.g. RetroArch).
+        The provider owns all backend-specific logic; this method only handles
+        common post-launch bookkeeping.
 
         Returns True on success, False on failure.
         """
-        provider = self.external_emu.active_provider
-        print(
-            f"[ExternalEmu] Launching {type(provider).__name__} — ROM: {os.path.basename(rom_path)}"
-        )
+        provider = self.emulator_manager.active_provider
+        print(f"[Sinew] Launching {type(provider).__name__} — ROM: {os.path.basename(rom_path)}")
         if sav_path:
-            print(f"[ExternalEmu] Save: {sav_path}")
+            print(f"[Sinew] Save: {sav_path}")
 
-        success = self.external_emu.launch(rom_path, self.controller)
+        success = self.emulator_manager.launch(
+            rom_path, self.controller, sav_path=sav_path, game_screen=self
+        )
         if not success:
-            print(
-                f"[ExternalEmu] External emulator launch failed for {os.path.basename(rom_path)}"
-            )
+            print(f"[Sinew] Provider launch failed for {os.path.basename(rom_path)}")
             return False
 
-        self.emulator_active = True
-        self._stop_menu_music()
+        # In-process providers set emulator_active and stop music themselves
+        # inside launch_integrated().  Subprocess providers need this mixin to
+        # do it and to spin up a process-watcher thread.
+        if not provider.is_integrated:
+            self.emulator_active = True
+            self._stop_menu_music()
 
-        def _watch():
-            try:
-                self.external_emu.process.wait()
-            except Exception:
-                pass
-            self._on_external_emulator_closed()
+            def _watch():
+                try:
+                    self.emulator_manager.process.wait()
+                except Exception:
+                    pass
+                self._on_emulator_provider_closed()
 
-        threading.Thread(target=_watch, daemon=True).start()
+            threading.Thread(target=_watch, daemon=True).start()
+
         return True
 
-    def _on_external_emulator_closed(self):
+    def _on_emulator_provider_closed(self):
         """
         Called from a background thread when the external emulator process exits.
         Sets a flag; the main thread acts on it in update() where it is safe to
@@ -186,32 +165,7 @@ class EmulatorSessionMixin:
         """
         self.emulator_active = False
         self._ext_emu_closed_needs_reload = True
-        print("[ExternalEmu] External emulator closed")
-
-    # ------------------------------------------------------------------
-    # Integrated backend
-    # ------------------------------------------------------------------
-
-    def _launch_integrated_emulator(self, rom_path, sav_path):
-        """Initialise MgbaEmulator (if needed) and load the ROM."""
-        if self.emulator is None:
-            self.emulator = MgbaEmulator(
-                core_path=MGBA_CORE_PATH,
-                save_dir=SAVES_DIR,
-                system_dir=SYSTEM_DIR,
-                cores_dir=CORES_DIR,
-            )
-
-        self.emulator.load_rom(rom_path, sav_path)
-        builtins.SINEW_EMULATOR = self.emulator
-        self.emulator_active = True
-        self._emulator_pause_combo_released = True
-        self._stop_menu_music()
-
-        if self.scaler:
-            self.scaler.set_virtual_resolution(240, 160)
-
-        print(f"[Sinew] Launched: {os.path.basename(rom_path)}")
+        print("[EmulatorManager] Provider process closed")
 
     # ------------------------------------------------------------------
     # Stop / cleanup
@@ -348,8 +302,8 @@ class EmulatorSessionMixin:
     # External emulator toggle handler
     # ------------------------------------------------------------------
 
-    def _on_external_emu_toggled(self, enabled):
-        """Rebuild the game list when the user toggles the external emulator setting."""
+    def _on_emulator_provider_toggled(self, enabled):
+        """Rebuild the game list when the user toggles the emulator provider setting."""
         try:
             screen = pygame.display.get_surface()
         except Exception:
@@ -359,20 +313,34 @@ class EmulatorSessionMixin:
             message = "Scanning external ROMs..." if enabled else "Scanning internal ROMs..."
             self._draw_loading_screen(screen, message, 0, 3)
 
-        if enabled and not self.external_emu:
+        if enabled and not self.emulator_manager:
             try:
-                from external_emulator import ExternalEmulator
-                self.external_emu = ExternalEmulator()
-                if self.external_emu.active_provider:
+                from emulator_manager import EmulatorManager
+                self.emulator_manager = EmulatorManager(use_external_providers=enabled)
+                if self.emulator_manager.active_provider:
                     print(
-                        f"[ExternalEmu] Provider initialized: {type(
-                            self.external_emu.active_provider).__name__}"
+                        f"[EmulatorManager] Provider initialized: {type(
+                            self.emulator_manager.active_provider).__name__}"
                     )
                 else:
-                    print("[ExternalEmu] No provider matched this environment")
+                    print("[EmulatorManager] No provider matched this environment")
             except ImportError:
                 print(
-                    "[ExternalEmu] external_emulator.py not found — external emulator unavailable")
+                    "[EmulatorManager] emulator_manager.py not found — provider unavailable")
+        elif self.emulator_manager and not self.emulator_manager.is_running:
+            # Reinitialize to apply the new external-providers flag
+            try:
+                from emulator_manager import EmulatorManager
+                self.emulator_manager = EmulatorManager(use_external_providers=enabled)
+                if self.emulator_manager.active_provider:
+                    print(
+                        f"[EmulatorManager] Re-initialized: {type(
+                            self.emulator_manager.active_provider).__name__}"
+                    )
+                else:
+                    print("[EmulatorManager] No provider matched after re-init")
+            except ImportError:
+                print("[EmulatorManager] emulator_manager.py not found — provider unavailable")
 
         from config import _save_scan_cache
         _rom_scan_cache.clear()
@@ -387,6 +355,12 @@ class EmulatorSessionMixin:
             self._draw_loading_screen(screen, "Scanning ROMs and saves...", 1, 3)
 
         self._init_games()
+
+        # Reset navigation to Sinew (index 0) — the game list has changed and
+        # the previously selected index may now be out of bounds or point to the
+        # wrong game entirely.
+        self.current_game = 0
+        self.menu_index = 0
 
         # Back up external saves before Sinew starts reading/writing them
         if enabled and self.games:
@@ -404,9 +378,9 @@ class EmulatorSessionMixin:
                             BACKUPS_DIR, f"{name}_ext_backup_{ts}{ext}"
                         )
                         shutil.copy2(sav, backup_path)
-                        print(f"[ExternalEmu] Backed up {bname} -> {os.path.basename(backup_path)}")
+                        print(f"[EmulatorManager] Backed up {bname} -> {os.path.basename(backup_path)}")
                     except Exception as e:
-                        print(f"[ExternalEmu] Backup failed for {gname}: {e}")
+                        print(f"[EmulatorManager] Backup failed for {gname}: {e}")
 
         if screen:
             self._draw_loading_screen(screen, "Loading save data...", 2, 3)
@@ -428,11 +402,12 @@ class EmulatorSessionMixin:
             self._draw_loading_screen(screen, "Done!", 3, 3)
             pygame.time.wait(200)
 
-        if not self.is_on_sinew():
-            self.load_game_and_background()
+        # Always reload the current game/background after a provider switch
+        # since current_game was reset to 0 (Sinew).
+        self.load_game_and_background()
 
         toggled = 'ON' if enabled else 'OFF'
-        print(f"[GameScreen] External emulator toggled {toggled}, games reloaded")
+        print(f"[GameScreen] Emulator provider toggled {toggled}, games reloaded")
 
     # ------------------------------------------------------------------
     # Draw (integrated emulator only)

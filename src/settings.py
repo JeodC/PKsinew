@@ -23,9 +23,13 @@ from config import (
 # Use the same ARM detection as the emulator so slider defaults match
 # the actual values _init_audio will use.
 try:
-    from mgba_emulator import is_linux_arm
-    _IS_ARM_AUDIO = is_linux_arm()
-except ImportError:
+    import platform as _platform
+    _machine = _platform.machine().lower()
+    _IS_ARM_AUDIO = (
+        _platform.system().lower() == "linux"
+        and _machine in ("aarch64", "arm64", "armv7l", "armv6l", "arm")
+    )
+except Exception:
     _IS_ARM_AUDIO = IS_HANDHELD
 from controller import NavigableList, get_controller
 
@@ -644,7 +648,7 @@ class Settings:
         db_builder_callback=None,
         scaler=None,
         reload_combo_callback=None,
-        external_emu_toggle_callback=None,
+        emulator_provider_callback=None,
     ):
         self.width = w
         self.height = h
@@ -659,7 +663,7 @@ class Settings:
             db_builder_callback=db_builder_callback,
             scaler=scaler,
             reload_combo_callback=reload_combo_callback,
-            external_emu_toggle_callback=external_emu_toggle_callback,
+            emulator_provider_callback=emulator_provider_callback,
         )
         self.visible = True
 
@@ -1128,7 +1132,7 @@ class MainSetup:
         db_builder_callback=None,
         scaler=None,
         reload_combo_callback=None,
-        external_emu_toggle_callback=None,
+        emulator_provider_callback=None,
     ):
         self.width = width
         self.height = height
@@ -1140,7 +1144,7 @@ class MainSetup:
         self.db_builder_callback = db_builder_callback
         self.scaler = scaler
         self.reload_combo_callback = reload_combo_callback
-        self.external_emu_toggle_callback = external_emu_toggle_callback
+        self.emulator_provider_callback = emulator_provider_callback
         self.controller = get_controller()
 
         # Sub-screen state
@@ -1177,6 +1181,7 @@ class MainSetup:
                 # Fullscreen has no meaning on a handheld — hide it entirely
                 *([] if IS_HANDHELD else [{"name": "Fullscreen", "type": "toggle",
                     "value": False}]),
+                {"name": "Use External Providers", "type": "toggle", "value": False},
                 {
                     "name": "Volume",
                     "type": "slider",
@@ -1239,7 +1244,6 @@ class MainSetup:
                 {"name": "Changelog", "type": "button"},
             ],
             "Dev": [
-                {"name": "Use External Emulator", "type": "toggle", "value": False},
                 {"name": "Reset ALL Achievements", "type": "button"},
                 {"name": "Reset Game Achievements...", "type": "button"},
                 {"name": "Export Achievement Data", "type": "button"},
@@ -1273,6 +1277,8 @@ class MainSetup:
                 opt["value"] = settings.get("mute_menu_music", False)
             elif opt["name"] == "Fullscreen":
                 opt["value"] = settings.get("fullscreen", False)
+            elif opt["name"] == "Use External Providers":
+                opt["value"] = settings.get("use_emulator_provider", False)
             elif opt["name"] == "Volume":
                 saved_vol = settings.get("master_volume", VOLUME_DEFAULT)
                 vol_values = opt.get("volume_values", list(range(VOLUME_MIN, VOLUME_MAX + 1,
@@ -1310,11 +1316,6 @@ class MainSetup:
                     opt["slider_index"] = AUDIO_QUEUE_OPTIONS.index(saved_depth)
                 else:
                     opt["slider_index"] = AUDIO_QUEUE_OPTIONS.index(AUDIO_QUEUE_DEPTH_DEFAULT)
-
-        # Load Dev tab settings
-        for opt in self.tab_options["Dev"]:
-            if opt["name"] == "Use External Emulator":
-                opt["value"] = settings.get("use_external_emulator", False)
 
         # Check if emulator had to revert audio settings on last resume
         try:
@@ -1463,24 +1464,24 @@ class MainSetup:
             self.fullscreen_callback(value)
         elif name == "Mute Menu Music" and self.music_mute_callback:
             self.music_mute_callback(value)
-        elif name == "Use External Emulator":
+        elif name == "Use External Providers":
             try:
                 settings = load_sinew_settings()
-                settings["use_external_emulator"] = value
+                settings["use_emulator_provider"] = value
                 save_sinew_settings(settings)
                 import builtins
 
-                builtins.SINEW_USE_EXTERNAL_EMULATOR = value
+                builtins.SINEW_USE_EMULATOR_PROVIDER = value
                 status = "ON" if value else "OFF"
-                print(f"[Settings] Use External Emulator: {status}")
-                self._status_msg(f"External Emulator: {status}")
+                print(f"[Settings] Use External Providers: {status}")
+                self._status_msg(f"External Emulators: {status}")
 
                 # Trigger game re-scan in GameScreen
-                if self.external_emu_toggle_callback:
-                    self.external_emu_toggle_callback(value)
+                if self.emulator_provider_callback:
+                    self.emulator_provider_callback(value)
 
             except Exception as e:
-                print(f"[Settings] Failed to save external emulator setting: {e}")
+                print(f"[Settings] Failed to save emulator provider setting: {e}")
         elif name == "Fast-Forward":
             self._save_mgba_fastforward_settings()
             self._apply_fastforward_to_emulator()

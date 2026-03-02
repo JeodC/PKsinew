@@ -3,7 +3,7 @@
 """Template provider for creating new external emulator providers."""
 
 import os
-from external_emulator import EmulatorProvider
+from emulator_manager import EmulatorProvider
 from settings import save_sinew_settings
 
 class TemplateProvider(EmulatorProvider):

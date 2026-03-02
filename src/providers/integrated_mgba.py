@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 
 """
-mgba_emulator.py - mGBA libretro core wrapper for Sinew
-Integrates GBA emulation into the Sinew Pokemon save manager
-"""
+integrated_mgba.py
 
+Provider + emulator implementation for the built-in mGBA libretro core.
+
+All mGBA logic (libretro structs, constants, callbacks, audio, input) lives
+here.  Removing this file is sufficient to drop integrated mGBA support;
+no other module imports from it.
+
+The _MgbaEmulator class is the full libretro wrapper (formerly mgba_emulator.py).
+IntegratedMgbaProvider is the EmulatorProvider that wraps it for the provider
+system and handles session state on game_screen.
+"""
 import ctypes
 import os
 import platform
@@ -386,7 +394,7 @@ POLL_CB = CFUNCTYPE(None)
 STATE_CB = CFUNCTYPE(c_int16, c_uint32, c_uint32, c_uint32, c_uint32)
 
 
-class MgbaEmulator:
+class _MgbaEmulator:
     """
     mGBA libretro core wrapper for embedding GBA emulation in Sinew.
 
@@ -397,10 +405,10 @@ class MgbaEmulator:
 
     Usage:
         # Auto-detect core (recommended)
-        emu = MgbaEmulator()
+        emu = _MgbaEmulator()
 
         # Or specify explicitly
-        emu = MgbaEmulator(core_path="cores/mgba_libretro.dll")
+        emu = _MgbaEmulator(core_path="cores/mgba_libretro.dll")
 
         emu.load_rom("roms/Emerald.gba", "saves/Emerald.sav")
 
@@ -481,7 +489,7 @@ class MgbaEmulator:
         self._frame_meta = {"width": 0, "height": 0, "pitch": 0}
         self._frame_ready = False
 
-        # Audio — buffer and queue depth tuned per platform
+        # Audio â€” buffer and queue depth tuned per platform
         _audio_buf, _audio_queue_depth = get_audio_settings()
         self.audio_queue = deque(maxlen=_audio_queue_depth)
         self._audio_lock = threading.Lock()
@@ -490,7 +498,7 @@ class MgbaEmulator:
         self._audio_running = False
 
         # Deferred audio setting changes (applied on next _init_audio / _reinit_audio,
-        # NOT immediately — avoids killing Sinew's menu music mixer while paused).
+        # NOT immediately â€” avoids killing Sinew's menu music mixer while paused).
         self._pending_audio_buffer = None
         self._pending_audio_queue_depth = None
         # Set to True if _init_audio / _reinit_audio had to fall back to defaults.
@@ -502,7 +510,7 @@ class MgbaEmulator:
         self._diagnostic_interval = 5.0  # seconds
         self._audio_batches_received = 0
 
-        # Volume / mute — loaded from settings, applied to channel after init
+        # Volume / mute â€” loaded from settings, applied to channel after init
         self._mgba_muted = False
         self._master_volume = VOLUME_DEFAULT  # 0-100
         self._load_volume_settings()
@@ -548,7 +556,7 @@ class MgbaEmulator:
     def _load_controller_config(self):
         """Load saved controller configuration from sinew_settings.json.
 
-        This is the USER OVERRIDE layer — it runs after _init_joystick() has
+        This is the USER OVERRIDE layer â€” it runs after _init_joystick() has
         already applied SDL_GAMECONTROLLERCONFIG or controller_profiles, so any
         mapping saved here by the user (via ButtonMapper) always wins.
 
@@ -580,7 +588,7 @@ class MgbaEmulator:
 
         try:
             if not os.path.exists(config_file):
-                # No settings file yet — _init_joystick already applied the best
+                # No settings file yet â€” _init_joystick already applied the best
                 # available mapping (SDL config or controller_profiles).
                 # Re-apply profile so d-pad state is also initialised correctly.
                 self._apply_profile_from_joystick()
@@ -846,17 +854,17 @@ class MgbaEmulator:
 
                 # DIAGNOSTIC: Log first audio batch from mGBA core
                 if _audio_batch_count[0] == 0:
-                    print(f"[MgbaEmulator] ╔══════════════════════════════════════════════════════")
-                    print(f"[MgbaEmulator] ║ FIRST AUDIO BATCH FROM mGBA CORE")
-                    print(f"[MgbaEmulator] ╠══════════════════════════════════════════════════════")
-                    print(f"[MgbaEmulator] ║ Frames received:  {frames}")
-                    print(f"[MgbaEmulator] ║ Array shape:      {arr.shape}")
-                    print(f"[MgbaEmulator] ║ Array dtype:      {arr.dtype}")
-                    print(f"[MgbaEmulator] ║ Sample range:     [{arr.min()}, {arr.max()}]")
-                    print(f"[MgbaEmulator] ║ Queue size:       {len(
+                    print(f"[MgbaEmulator] â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•")
+                    print(f"[MgbaEmulator] â•‘ FIRST AUDIO BATCH FROM mGBA CORE")
+                    print(f"[MgbaEmulator] â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•")
+                    print(f"[MgbaEmulator] â•‘ Frames received:  {frames}")
+                    print(f"[MgbaEmulator] â•‘ Array shape:      {arr.shape}")
+                    print(f"[MgbaEmulator] â•‘ Array dtype:      {arr.dtype}")
+                    print(f"[MgbaEmulator] â•‘ Sample range:     [{arr.min()}, {arr.max()}]")
+                    print(f"[MgbaEmulator] â•‘ Queue size:       {len(
                         self.audio_queue)}/{self.audio_queue.maxlen}")
-                    print(f"[MgbaEmulator] ║ mGBA is generating audio ✅")
-                    print(f"[MgbaEmulator] ╚══════════════════════════════════════════════════════")
+                    print(f"[MgbaEmulator] â•‘ mGBA is generating audio âœ…")
+                    print(f"[MgbaEmulator] â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•")
 
                 _audio_batch_count[0] += 1
                 self._audio_batches_received += 1
@@ -865,12 +873,12 @@ class MgbaEmulator:
                     self.audio_queue.append(arr)
                 return frames
             except Exception as e:
-                print(f"[MgbaEmulator] ╔══════════════════════════════════════════════════════")
-                print(f"[MgbaEmulator] ║ AUDIO BATCH CALLBACK ERROR")
-                print(f"[MgbaEmulator] ╠══════════════════════════════════════════════════════")
-                print(f"[MgbaEmulator] ║ Error: {e}")
-                print(f"[MgbaEmulator] ║ Frames: {frames}")
-                print(f"[MgbaEmulator] ╚══════════════════════════════════════════════════════")
+                print(f"[MgbaEmulator] â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•")
+                print(f"[MgbaEmulator] â•‘ AUDIO BATCH CALLBACK ERROR")
+                print(f"[MgbaEmulator] â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•")
+                print(f"[MgbaEmulator] â•‘ Error: {e}")
+                print(f"[MgbaEmulator] â•‘ Frames: {frames}")
+                print(f"[MgbaEmulator] â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•")
                 import traceback
                 traceback.print_exc()
                 return 0
@@ -1121,11 +1129,11 @@ class MgbaEmulator:
         """Initialize joystick and resolve button mapping.
 
         Priority (highest to lowest):
-          1. SDL_GAMECONTROLLERCONFIG env var — set by PortMaster's control.txt /
+          1. SDL_GAMECONTROLLERCONFIG env var â€” set by PortMaster's control.txt /
              get_controls for the exact device we're running on.  Most accurate.
-          2. controller_profiles database — our hand-curated + GameControllerDB
+          2. controller_profiles database â€” our hand-curated + GameControllerDB
              fallback for non-PortMaster launches (desktop, direct run, etc.).
-          3. Hardcoded defaults in _gamepad_map — last resort.
+          3. Hardcoded defaults in _gamepad_map â€” last resort.
 
         Saved user overrides in sinew_settings.json (controller_mapping) are
         applied afterwards by _load_controller_config(), which runs at the end
@@ -1144,7 +1152,7 @@ class MgbaEmulator:
         if sdl_config:
             applied = self._apply_sdl_controller_config(sdl_config)
             if applied:
-                return  # SDL config is authoritative — skip profile lookup
+                return  # SDL config is authoritative â€” skip profile lookup
 
         # --- Priority 2: controller_profiles database ---
         self._apply_profile_from_joystick()
@@ -1198,7 +1206,7 @@ class MgbaEmulator:
                 best_entry = line
                 break
 
-        # If no name match, use the only entry (common case — one mapping per device)
+        # If no name match, use the only entry (common case â€” one mapping per device)
         if best_entry is None and len(lines) == 1:
             best_entry = lines[0]
 
@@ -1521,12 +1529,12 @@ class MgbaEmulator:
 
         while self._audio_running:
             try:
-                # Skip if paused — Sinew owns the mixer while we're paused
+                # Skip if paused â€” Sinew owns the mixer while we're paused
                 if self.paused:
                     pygame.time.wait(10)
                     continue
 
-                # If mixer is gone, just wait — _reinit_audio will fix it on resume
+                # If mixer is gone, just wait â€” _reinit_audio will fix it on resume
                 if not pygame.mixer.get_init():
                     pygame.time.wait(50)
                     continue
@@ -1572,7 +1580,7 @@ class MgbaEmulator:
 
                                     if mixer_channels != chunk_channels:
                                         if mixer_channels > chunk_channels:
-                                            # Pad with zeros (e.g., stereo → 8 channels)
+                                            # Pad with zeros (e.g., stereo â†’ 8 channels)
                                             # Audio plays on first 2 channels, rest are silent
                                             pad_channels = mixer_channels - chunk_channels
                                             zeros = np.zeros((chunk.shape[0], pad_channels),
@@ -1581,7 +1589,7 @@ class MgbaEmulator:
 
                                             # Log this workaround on first occurrence
                                             if chunks_played == 0:
-                                                print(f"[MgbaEmulator] ⚠️  AUDIO WORKAROUND: Padding {chunk_channels}-channel audio to {mixer_channels} channels")  # pylint: disable=line-too-long  # noqa: E501
+                                                print(f"[MgbaEmulator] âš ï¸  AUDIO WORKAROUND: Padding {chunk_channels}-channel audio to {mixer_channels} channels")  # pylint: disable=line-too-long  # noqa: E501
                                                 print(
                                                     f"[MgbaEmulator]     "
                                                     "(pygame refused to initialize with stereo)"
@@ -1746,7 +1754,7 @@ class MgbaEmulator:
             self._last_audio_diagnostic_time = current_time
             thread_alive = self._audio_thread and self._audio_thread.is_alive()
             queue_size = len(self.audio_queue)
-            print(f"[MgbaEmulator] ▶ Audio Status: thread={'RUNNING ✅' if thread_alive else 'STOPPED ❌'}, "  # pylint: disable=line-too-long  # noqa: E501
+            print(f"[MgbaEmulator] â–¶ Audio Status: thread={'RUNNING âœ…' if thread_alive else 'STOPPED âŒ'}, "  # pylint: disable=line-too-long  # noqa: E501
                   f"batches_received={self._audio_batches_received}, "
                   f"queue={queue_size}/{self.audio_queue.maxlen}, "
                   f"channel={'OK' if self._audio_channel else 'NONE'}, "
@@ -1775,7 +1783,7 @@ class MgbaEmulator:
         ``_init_audio()`` or ``_reinit_audio()`` runs (i.e. on game launch
         or resume).
 
-        Returns True always — actual failure is handled at apply-time.
+        Returns True always â€” actual failure is handled at apply-time.
         """
         self._pending_audio_buffer = int(buffer_size)
         self._pending_audio_queue_depth = int(queue_depth)
@@ -1847,13 +1855,13 @@ class MgbaEmulator:
             print(f"[MgbaEmulator] Could not load volume settings: {e}")
 
     def _get_effective_volume(self):
-        """Return 0.0–1.0 for the audio channel, accounting for master + mute."""
+        """Return 0.0â€“1.0 for the audio channel, accounting for master + mute."""
         if self._mgba_muted:
             return 0.0
         return max(0.0, min(1.0, self._master_volume / 100.0))
 
     def set_master_volume(self, volume_int):
-        """Set master volume (0–100). Applies immediately to audio channel."""
+        """Set master volume (0â€“100). Applies immediately to audio channel."""
         self._master_volume = max(0, min(100, int(volume_int)))
         self._apply_channel_volume()
         paused_note = ' (paused - will apply on resume)' if self.paused else ''
@@ -2039,7 +2047,7 @@ class MgbaEmulator:
                         num_buttons = self._joystick.get_numbuttons()
 
                         # Map button names to gamepad indices.
-                        # No magic-number fallbacks — _gamepad_map was already
+                        # No magic-number fallbacks â€” _gamepad_map was already
                         # populated by _init_joystick (SDL config / profile / defaults).
                         btn_map = {
                             "START":  self._gamepad_map.get(RETRO_DEVICE_ID_JOYPAD_START),
@@ -2080,7 +2088,7 @@ class MgbaEmulator:
             self.paused = True
             self.save_sram()
 
-            # Stop audio thread — Sinew is about to own the mixer
+            # Stop audio thread â€” Sinew is about to own the mixer
             self._audio_running = False
             if self._audio_thread and self._audio_thread.is_alive():
                 try:
@@ -2319,60 +2327,98 @@ class MgbaEmulator:
         print("[MgbaEmulator] Shutdown complete")
 
 
-# Convenience function for quick testing
-def test_emulator():
-    """Test the emulator standalone."""
-    pygame.init()
 
-    SCALE = 3
-    screen = pygame.display.set_mode((240 * SCALE, 160 * SCALE))
-    pygame.display.set_caption("mGBA Test")
-    clock = pygame.time.Clock()
+# ---------------------------------------------------------------------------
+# Provider wrapper
+# ---------------------------------------------------------------------------
 
-    # Auto-detect core based on platform (uses config paths by default)
-    emu = MgbaEmulator()
+from emulator_manager import EmulatorProvider
 
-    rom_path = os.path.join(ROMS_DIR, "Emerald.gba")
 
-    emu.load_rom(rom_path)
+class IntegratedMgbaProvider(EmulatorProvider):
+    """
+    In-process mGBA libretro provider  the default fallback for all platforms.
 
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    running = False
-                if event.key == pygame.K_F5:
-                    emu.save_sram()
+    External providers (RocknixProvider, DesktopRetroarch, etc.) take priority
+    because they are registered before this one; EmulatorManager stops at the
+    first successful probe.
+    """
 
-        # Check pause combo
-        if emu.check_pause_combo():
-            emu.toggle_pause()
+    active = True
+    is_integrated = True
 
-        if not emu.paused:
-            emu.run_frame()
+    @property
+    def supported_os(self):
+        return ["linux", "darwin", "windows"]
 
-        # Draw
-        surf = emu.get_surface(scale=SCALE)
-        screen.blit(surf, (0, 0))
+    def __init__(self, sinew_settings):
+        self.settings = sinew_settings
 
-        if emu.paused:
-            # Draw pause indicator
-            font = pygame.font.Font(None, 36)
-            text = font.render(
-                "PAUSED - Hold Start+Select to resume", True, (255, 255, 0)
+    def probe(self, distro_id) -> bool:
+        """Return True if the mGBA core library is present and loadable."""
+        try:
+            import os
+            import ctypes
+            from config import MGBA_CORE_PATH
+            available = bool(MGBA_CORE_PATH and os.path.isfile(MGBA_CORE_PATH))
+            if available:
+                # Verify it can actually be loaded
+                try:
+                    ctypes.CDLL(MGBA_CORE_PATH)
+                except OSError:
+                    available = False
+        except Exception:
+            available = False
+        print(f"[IntegratedMgba] mGBA core {'available' if available else 'unavailable'}.")
+        return available
+
+    # ------------------------------------------------------------------
+    # In-process launch — all mGBA logic lives here
+    # ------------------------------------------------------------------
+
+    def launch_integrated(self, rom_path, sav_path, game_screen):
+        """
+        Initialise _MgbaEmulator (if needed), load the ROM, and update
+        game_screen state.  This is the only place that constructs the
+        emulator; no other module needs to know about _MgbaEmulator.
+        """
+        import builtins
+
+        if game_screen is None:
+            raise RuntimeError("[IntegratedMgba] launch_integrated requires a game_screen reference.")
+
+        from config import MGBA_CORE_PATH, SAVES_DIR, SYSTEM_DIR, CORES_DIR
+
+        if game_screen.emulator is None:
+            game_screen.emulator = _MgbaEmulator(
+                core_path=MGBA_CORE_PATH,
+                save_dir=SAVES_DIR,
+                system_dir=SYSTEM_DIR,
+                cores_dir=CORES_DIR,
             )
-            rect = text.get_rect(center=(120 * SCALE, 80 * SCALE))
-            screen.blit(text, rect)
 
-        pygame.display.flip()
-        clock.tick(emu.fps if emu.loaded else 60)
+        game_screen.emulator.load_rom(rom_path, sav_path)
+        builtins.SINEW_EMULATOR = game_screen.emulator
+        game_screen.emulator_active = True
+        game_screen._emulator_pause_combo_released = True
+        game_screen._stop_menu_music()
 
-    emu.shutdown()
-    pygame.quit()
+        if game_screen.scaler:
+            game_screen.scaler.set_virtual_resolution(240, 160)
 
+        import os as _os
+        print(f"[IntegratedMgba] Launched: {_os.path.basename(rom_path)}")
 
-if __name__ == "__main__":
-    test_emulator()
+    # ------------------------------------------------------------------
+    # Unused subprocess interface (required by ABC)
+    # ------------------------------------------------------------------
+
+    def get_command(self, rom_path, core="auto"):
+        """Not used  in-process provider does not spawn a subprocess."""
+        return None
+
+    def terminate(self, process):
+        """Not used  mGBA lifecycle is managed by GameScreen directly."""
+
+    def on_exit(self):
+        """Not used  mGBA exit is handled by GameScreen directly."""

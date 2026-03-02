@@ -64,9 +64,6 @@ from db_builder_screen import DBBuilder
 from PokedexModal import PokedexModal
 from export_modal import ExportModal
 from events_screen import EventsModal
-from mgba_emulator import MgbaEmulator, find_core_path
-
-EMULATOR_AVAILABLE = True
 
 from game_detection import (
     GAME_DEFINITIONS, GAME_FULL, GAME_SAVE_ONLY, GAME_UNAVAILABLE,
@@ -156,23 +153,23 @@ class GameScreen(
         import builtins
         if not hasattr(builtins, 'SINEW_DEV_MODE'):
             builtins.SINEW_DEV_MODE = self.settings.get('dev_mode', False)
-        if not hasattr(builtins, 'SINEW_USE_EXTERNAL_EMULATOR'):
-            builtins.SINEW_USE_EXTERNAL_EMULATOR = self.settings.get('use_external_emulator', False)
+        if not hasattr(builtins, 'SINEW_USE_EMULATOR_PROVIDER'):
+            builtins.SINEW_USE_EMULATOR_PROVIDER = self.settings.get('use_emulator_provider', False)
 
-        # External emulator
-        self.external_emu = None
-        use_external = self.settings.get('use_external_emulator', False)
-        if use_external:
-            try:
-                from external_emulator import ExternalEmulator
-                self.external_emu = ExternalEmulator()
-                if self.external_emu.active_provider:
-                    print(f'[ExternalEmu] Provider ready: {type(
-                        self.external_emu.active_provider).__name__}')
-                else:
-                    print('[ExternalEmu] No provider matched this environment')
-            except ImportError:
-                print('[ExternalEmu] external_emulator.py not found \u2014 external emulator unavailable')  # pylint: disable=line-too-long  # noqa: E501
+        # Emulator manager — always initialized; use_provider controls whether
+        # external (subprocess) providers are included alongside built-in mGBA.
+        use_provider = self.settings.get('use_emulator_provider', False)
+        try:
+            from emulator_manager import EmulatorManager
+            self.emulator_manager = EmulatorManager(use_external_providers=use_provider)
+            if self.emulator_manager.active_provider:
+                print(f'[EmulatorManager] Provider ready: {type(
+                    self.emulator_manager.active_provider).__name__}')
+            else:
+                print('[EmulatorManager] No provider matched this environment')
+        except ImportError:
+            self.emulator_manager = None
+            print('[EmulatorManager] emulator_manager.py not found — provider unavailable')  # pylint: disable=line-too-long  # noqa: E501
 
         # Pause combo
         self._load_pause_combo_setting()
@@ -607,5 +604,5 @@ class GameScreen(
                 print(f"[Sinew] Cleanup error: {e}")
             self.emulator = None
 
-        if hasattr(self, 'external_emu') and self.external_emu and self.external_emu.is_running:
-            self.external_emu.terminate()
+        if hasattr(self, 'emulator_manager') and self.emulator_manager and self.emulator_manager.is_running:
+            self.emulator_manager.terminate()
