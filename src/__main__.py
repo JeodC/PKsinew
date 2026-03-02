@@ -171,12 +171,18 @@ def run():
         if not game_screen.update(filtered_events, dt):
             running = False
 
-        screen = scaler.get_surface()
-        game_screen.draw(screen)
-        scaler.blit_scaled()
+        # Don't try to draw if display was quit for external emulator
+        try:
+            screen = scaler.get_surface()
+            if screen:
+                game_screen.draw(screen)
+                scaler.blit_scaled()
 
-        game_screen.dim_screen(180 if (game_screen.emulator_manager
-            and game_screen.emulator_manager.is_running) else 0)
+                game_screen.dim_screen(180 if (game_screen.emulator_manager
+                    and game_screen.emulator_manager.is_running) else 0)
+        except pygame.error:
+            # Display was quit, skip drawing until it's reinitialized
+            pass
 
     game_screen.cleanup()
     pygame.quit()
