@@ -8,6 +8,38 @@ __main__.py — Standalone entry point for PKsinew. Imports GameScreen from game
 import os
 import sys
 
+# CRITICAL: SDL2 preload for ARM Linux handhelds (must be FIRST, before any imports)
+# 
+# PortMaster's pm_platform_helper may set LD_PRELOAD with system SDL2. If so, use that.
+# Otherwise, manually preload system SDL2 for KMSDRM/Mali GPU support on handhelds.
+# This prevents segfaults from pygame's bundled SDL2 which lacks device drivers.
+#
+# Skip preloading if:
+# - LD_PRELOAD already contains libSDL2 (PortMaster already handled it)
+# - Not on ARM Linux (desktop/Windows/Mac don't need this)
+if 'LD_PRELOAD' not in os.environ or 'libSDL2' not in os.environ.get('LD_PRELOAD', ''):
+    import platform as _platform
+    if sys.platform == 'linux' and _platform.machine().lower() in ('aarch64', 'arm64', 'armv7l', 'armv6l'):
+        import ctypes as _ctypes
+        _sdl2_paths = [
+            '/usr/lib/libSDL2-2.0.so.0',
+            '/usr/lib/libSDL2.so',
+            '/usr/lib/aarch64-linux-gnu/libSDL2-2.0.so.0',
+            '/usr/lib/arm-linux-gnueabihf/libSDL2-2.0.so.0',
+            '/usr/local/lib/libSDL2.so',
+        ]
+        for _sdl2_path in _sdl2_paths:
+            try:
+                _ctypes.CDLL(_sdl2_path, mode=_ctypes.RTLD_GLOBAL)
+                print(f'[Main] Preloaded system SDL2: {_sdl2_path}')
+                break
+            except OSError:
+                pass
+        else:
+            print('[Main] System SDL2 not found in known paths, using bundled version')
+else:
+    print(f'[Main] Using PortMaster preloaded SDL2 from LD_PRELOAD')
+
 _src_dir = os.path.dirname(os.path.abspath(__file__))
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
