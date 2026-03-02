@@ -126,7 +126,43 @@ class EmulatorManager:
 
         # Release the hardware
         controller_manager.pause()
-        pygame.display.iconify()
+        
+        # Store whether we fully quit the display (needed for handheld reinit)
+        display_was_quit = False
+        
+        # Display handling strategy depends on device type:
+        # - Single-screen handhelds (X55, RG35XX, etc.): Must quit display to release KMSDRM
+        # - Dual-screen devices (AYN Thor): Iconify to keep Sinew visible on second screen
+        # - Desktop: Iconify to minimize window
+        try:
+            from config import IS_HANDHELD
+            
+            # Check if this is a dual-screen device (AYN Thor detection)
+            is_dual_screen = False
+            if IS_HANDHELD:
+                try:
+                    # AYN Thor has 2+ displays via X11/Wayland
+                    if os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'):
+                        # On full Linux with X11/Wayland, iconify works fine
+                        is_dual_screen = True
+                except Exception:
+                    pass
+            
+            if IS_HANDHELD and not is_dual_screen:
+                # Single-screen embedded handheld: quit display to release KMSDRM
+                pygame.display.quit()
+                display_was_quit = True
+                print("[EmulatorManager] Display quit for single-screen handheld")
+            else:
+                # Desktop or dual-screen device: iconify keeps window alive
+                pygame.display.iconify()
+                if is_dual_screen:
+                    print("[EmulatorManager] Display iconified for dual-screen device")
+                else:
+                    print("[EmulatorManager] Display iconified for desktop")
+        except Exception as e:
+            print(f"[EmulatorManager] Display handling warning: {e}")
+            pygame.display.iconify()
 
         # Revert LD_LIBRARY_PATH for the system tools
         env = os.environ.copy()
@@ -150,6 +186,16 @@ class EmulatorManager:
                 self.process.wait()
                 print("[EmulatorManager] Subprocess ended. Resuming Sinew controls...")
                 self.is_running = False
+                
+                # Reinit display if we quit it for single-screen handheld
+                if display_was_quit:
+                    try:
+                        pygame.display.init()
+                        print("[EmulatorManager] Display reinitialized for handheld")
+                        # Note: The scaler will recreate the window in the main thread
+                    except Exception as e:
+                        print(f"[EmulatorManager] Display reinit error: {e}")
+                
                 if not self._exit_handled:
                     self._exit_handled = True
                     self.active_provider.on_exit()
